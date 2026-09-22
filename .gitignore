@@ -1,0 +1,12 @@
+.build/
+build/
+*.xcuserstate
+.DS_Store
+.swiftpm/
+.claude-transcripts/
+logs/
+# Review renders, critic crops and reference screenshots (local only; includes third-party screenshots)
+review-pictures/
+# Internal process notes (local only): project-state pointer, critic rounds, review-swarm reports
+thal.json
+docs/reviews/

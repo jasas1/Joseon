@@ -1,0 +1,32 @@
+Joseon — real-time audio analyzer for macOS
+Copyright (C) 2026 James Sumpter
+
+This program is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License, version 3, as published by the Free
+Software Foundation. This program is distributed WITHOUT ANY WARRANTY. See the
+LICENSE file for the full text.
+
+The name "Joseon" and the Joseon app icon are not covered by that license. Do not
+use them for a modified version in a way that suggests it is the original app.
+
+Third-party material
+--------------------
+
+AutoEq — https://github.com/jaakkopasanen/AutoEq
+  MIT License, Copyright (c) 2018-2022 Jaakko Pasanen.
+  Joseon embeds measured headphone frequency responses and target curves taken from
+  AutoEq (`Sources/JoseonHeadphones/EmbeddedCurves.swift`). Most measurements were made
+  by oratory1990. Full license text, file list and measurers: docs/third-party-autoeq.md.
+
+Headphone sensitivity figures are facts cited from manufacturer data sheets. The
+diffuse-field offset comes from Hammershøi & Møller (2008), DOI 10.3813/AAA.918014.
+Sources: docs/third-party-sensitivity.md.
+
+Trademarks
+----------
+
+Headphone brand and model names (Sennheiser, Focal, Audeze, HiFiMAN, Meze, ZMF, Sony,
+Apple and others) are trademarks of their owners. Joseon uses them only to say which
+measured curve belongs to which product. Joseon is not affiliated with or endorsed by
+any of these companies. Qobuz is a trademark of its owner and is named only as an
+example of a music source.
