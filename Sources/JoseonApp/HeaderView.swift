@@ -1,6 +1,7 @@
 import SwiftUI
 import JoseonCore
 import JoseonHeadphones
+import JoseonRender
 
 /// Actions the SwiftUI views send to the shell.
 struct ShellActions {
@@ -135,14 +136,35 @@ struct HeaderStrip: View {
 /// Two lines: the apps that play (or "Waiting for audio"), then device · sample rate · bit depth.
 struct StreamBlock: View {
     var header: HeaderState
+    /// The track the player shows, after the source name. The popover passes it; the main window header does not.
+    var nowPlaying: NowPlaying? = nil
+    var showsHiRes = true
+    /// False while the popover is closed: the marquee then runs no timer.
+    var marqueeActive = true
+
+    /// Nil while there is no track, or while the headline is a notice or the demo signal.
+    private var nowPlayingText: String? {
+        guard let nowPlaying, header.notice == nil, header.state != .demo else { return nil }
+        let text = NowPlayingMarquee.displayText(for: nowPlaying, showsHiRes: showsHiRes)
+        return text.isEmpty ? nil : text
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(header.headline)
-                .font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(header.state == .demo && header.notice == nil ? Color(nsColor: Palette.demo) : Color.joseonText)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            HStack(alignment: .center, spacing: 6) {
+                Text(header.headline)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(header.state == .demo && header.notice == nil ? Color(nsColor: Palette.demo) : Color.joseonText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
+                if nowPlayingText != nil {
+                    // Very small, light grey, scrolling only when it does not fit. Spoken with the block below.
+                    NowPlayingMarqueeHost(nowPlaying: nowPlaying, showsHiRes: showsHiRes, isActive: marqueeActive)
+                        .frame(minWidth: 40, maxWidth: .infinity, alignment: .leading)
+                        .accessibilityHidden(true)
+                }
+            }
             if !header.facts.isEmpty, header.notice == nil {
                 // Only the first fact (app or device name) may shorten. Sample rate and bit depth never do.
                 HStack(spacing: 0) {
@@ -160,10 +182,13 @@ struct StreamBlock: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Stream")
-        .accessibilityValue(header.spoken)
-        .help(header.spoken)
+        .accessibilityValue(spoken)
+        .help(spoken)
     }
+
+    private var spoken: String { header.spoken + (nowPlayingText.map { ", now playing \($0)" } ?? "") }
 }
+
 
 struct StateBadge: View {
     var state: SignalState

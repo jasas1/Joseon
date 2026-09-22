@@ -39,6 +39,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return self.statusController.isItemVisible ? .miniGraph : .none
         }
         model.onSignalActivityChange = { [weak self] active in self?.statusController.setActive(active) }
+        // The one explanation before macOS asks for the Accessibility permission (the now-playing reader).
+        model.onNowPlayingTrustNeeded = { [weak self] in self?.explainNowPlayingPermission() }
         // "Measure your headphone…" in the headphone menus and in Settings.
         model.openMeasure = { [weak self] in self?.showMeasure(nil) }
         // A sweep must not go on into another output device.
@@ -313,7 +315,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
 
+    /// Once per launch, before `requestTrust()`, when the now-playing reader is not yet allowed. Not in snapshot mode:
+    /// a modal alert would block the run.
+    private func explainNowPlayingPermission() {
+        guard DebugSnapshot.directory == nil else { return }
+        let alert = NSAlert()
+        alert.messageText = "Allow Joseon to read the track title"
+        alert.informativeText = "Joseon reads the track title from Qobuz's window through macOS Accessibility. macOS will ask you to allow Joseon in System Settings → Privacy & Security → Accessibility."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Continue")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
+    }
+
     static func openPrivacySettings() {
+
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture") {
             NSWorkspace.shared.open(url)
         }

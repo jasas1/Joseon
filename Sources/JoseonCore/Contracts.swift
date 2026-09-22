@@ -30,6 +30,42 @@ public struct StreamInfo: Equatable, Sendable {
     }
 }
 
+/// What the source app plays now, read from its own player UI (Qobuz first). Text only; never audio.
+public struct NowPlaying: Equatable, Sendable {
+    public var title: String
+    public var artist: String
+    /// Empty when the player shows none.
+    public var album: String
+    /// The app it was read from, for example "Qobuz".
+    public var source: String
+    /// The player marks the stream as hi-res.
+    public var isHiRes: Bool
+
+    public init(title: String, artist: String, album: String = "", source: String, isHiRes: Bool = false) {
+        self.title = title
+        self.artist = artist
+        self.album = album
+        self.source = source
+        self.isHiRes = isHiRes
+    }
+
+    /// "Artist – Title", or just the one that is known.
+    public var line: String {
+        [artist, title].filter { !$0.isEmpty }.joined(separator: " \u{2013} ")
+    }
+}
+
+/// A reader of `NowPlaying`. JoseonCapture implements it with the Accessibility API; tests use a fake.
+public protocol NowPlayingSource: AnyObject {
+    /// Nil when nothing is known (no player, no permission, no track).
+    var current: NowPlaying? { get }
+    /// Called on the main queue whenever `current` changes, including to nil.
+    var onChange: ((NowPlaying?) -> Void)? { get set }
+    /// Starts polling. Cheap when the player is absent.
+    func start()
+    func stop()
+}
+
 /// A source of stereo float audio. JoseonCapture implements this with a process tap.
 /// Tests and the probe implement it with synthetic signals.
 public protocol AudioSource: AnyObject {

@@ -35,6 +35,7 @@ let package = Package(
             swiftSettings: swift5
         ),
         .testTarget(name: "JoseonCoreTests", dependencies: ["JoseonCore"], swiftSettings: swift5),
+        .testTarget(name: "JoseonCaptureTests", dependencies: ["JoseonCapture"], swiftSettings: swift5),
         .testTarget(name: "JoseonHeadphonesTests", dependencies: ["JoseonHeadphones"], swiftSettings: swift5),
         .testTarget(name: "JoseonRenderTests", dependencies: ["JoseonRender"], swiftSettings: swift5),
     ]

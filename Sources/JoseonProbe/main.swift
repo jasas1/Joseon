@@ -16,6 +16,7 @@ import JoseonRender
 //                       [--target LUFS] [--mode scope|placement] [--side] [--headphone "NAME"]
 //   joseon-probe measure-devices     lists the input devices as JSON; opens no input, needs no permission
 //   joseon-probe measure-selftest    offline checks of the measurement input logic; no audio I/O
+//   joseon-probe now-playing         reads the Qobuz player bar once through Accessibility; no prompt, no audio
 //
 // Exit codes: 0 ok / signal received, 1 usage or start error, 2 only silence, 3 renderer error, 4 leak found,
 //             5 a measure-selftest check failed.
@@ -82,6 +83,8 @@ usage:
                           HeadphoneModel runs on the engine, so the render shows the real overlay and real stress flags
   joseon-probe measure-devices     list the input devices as JSON (opens no input, needs no permission)
   joseon-probe measure-selftest    offline checks of the measurement input logic (no audio I/O); exit 5 on a FAIL
+  joseon-probe now-playing         read the Qobuz player bar once through Accessibility, as JSON
+                                   {"trusted":bool,"running":bool,"nowPlaying":{...}|null}; never prompts for the permission
 """
 
 // MARK: - JSON shapes
@@ -323,6 +326,30 @@ func runMeasureSelfTest() -> Never {
     exit(failed == 0 ? 0 : 5)
 }
 
+// MARK: - now-playing
+
+/// One read of the player bar. No timer: the reader's `readNow()` runs at most a few times, because the web content
+/// of an Electron app shows up in the Accessibility tree a moment after `AXManualAccessibility` is set.
+/// Not trusted: prints so and exits 0 without showing the permission prompt.
+func runNowPlaying() -> Never {
+    let reader = AccessibilityNowPlayingReader()
+    let trusted = AccessibilityNowPlayingReader.isTrusted
+    let running = reader.isPlayerRunning
+    var value: NowPlaying?
+    if trusted, running {
+        for attempt in 0..<8 {
+            if attempt > 0 { Thread.sleep(forTimeInterval: 0.4) }
+            value = reader.readNow()
+            if value != nil { break }
+        }
+    }
+    let nowPlaying: Any = value.map {
+        ["title": $0.title, "artist": $0.artist, "album": $0.album, "source": $0.source, "isHiRes": $0.isHiRes, "line": $0.line] as [String: Any]
+    } ?? NSNull()
+    emit(["trusted": trusted, "running": running, "nowPlaying": nowPlaying])
+    exit(0)
+}
+
 // MARK: - render
 
 /// Frames older than this are dropped from a long offline run: no panel shows more history by default.
@@ -434,5 +461,6 @@ case "cycle": runCycle(count: args.int("count", default: 3))
 case "render": runRender(args)
 case "measure-devices": runMeasureDevices()
 case "measure-selftest": runMeasureSelfTest()
+case "now-playing": runNowPlaying()
 default: fail(usage, code: 1)
 }

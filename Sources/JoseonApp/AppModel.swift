@@ -149,6 +149,16 @@ final class AppModel: ObservableObject {
 
     private(set) var source: AudioSource?
 
+    /// The track the player shows, read from its window. Nil when nothing is known (no player, no permission, no track).
+    @Published private(set) var nowPlaying: NowPlaying?
+    let nowPlayingSource: NowPlayingSource
+    /// The Accessibility permission, as two seams so the app builds without the real reader.
+    let nowPlayingTrust: NowPlayingTrust
+    /// The shell's one explanation before the first trust request. Main queue, at most once per launch.
+    var onNowPlayingTrustNeeded: (() -> Void)?
+    private var nowPlayingStarted = false
+    private var nowPlayingTrustAsked = false
+
     @Published private(set) var header = HeaderState()
     @Published private(set) var stressFlags: [StressFlag] = []
     @Published private(set) var hasHeadphoneModel = false
@@ -235,9 +245,15 @@ final class AppModel: ObservableObject {
     /// After this long the header names the likely cause of the wait. A normal start is faster.
     private static let pendingNoticeSeconds: TimeInterval = 0.7
 
-    init(settings: AppSettings) {
+    init(settings: AppSettings, nowPlayingSource: NowPlayingSource? = nil, nowPlayingTrust: NowPlayingTrust? = nil) {
         self.settings = settings
         self.appliedDemoMode = settings.demoMode
+        // The real reader (Accessibility API) unless a test or JOSEON_NOWPLAYING_FAKE=1 asks for the fake.
+        let useFake = ProcessInfo.processInfo.environment["JOSEON_NOWPLAYING_FAKE"] == "1"
+        self.nowPlayingSource = nowPlayingSource ?? (useFake ? FakeNowPlayingSource() : AccessibilityNowPlayingReader())
+        self.nowPlayingTrust = nowPlayingTrust ?? (useFake ? .fake : NowPlayingTrust(
+            isTrusted: { AccessibilityNowPlayingReader.isTrusted },
+            requestTrust: { AccessibilityNowPlayingReader.requestTrust() }))
         let engine = self.engine
         let gate = FrameGate(engine: engine)
         self.gate = gate
@@ -249,6 +265,7 @@ final class AppModel: ObservableObject {
         recordedSessionProvider = recorded
         sessionProvider = DebugSnapshot.directory != nil ? SnapshotOnlySessionSeed.provider(recorded: recorded) : recorded
         comparison.sourceName = { [weak self] in self?.comparisonSourceName ?? "" }
+        self.nowPlayingSource.onChange = { [weak self] track in self?.nowPlaying = track }
         reloadLibrary()
         applyFirstRunHeadphone()
         applySettings()
@@ -265,6 +282,7 @@ final class AppModel: ObservableObject {
     func start() {
         started = true
         startSource()
+        applyNowPlaying()
         if supervisor == nil {
             let t = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in self?.supervise() }
             t.tolerance = 0.03
@@ -278,6 +296,8 @@ final class AppModel: ObservableObject {
         supervisor = nil
         engine.stop()
         spl.shutdown()
+        nowPlayingSource.stop()
+        nowPlayingStarted = false
         engineRate = 0
         startGeneration += 1
         isStartPending = false
@@ -762,5 +782,29 @@ final class AppModel: ObservableObject {
         }
 
         if started, settings.demoMode != appliedDemoMode { startSource() }
+        if started { applyNowPlaying() }
+    }
+
+    // MARK: Now playing
+
+    /// Starts the reader when the setting is on and stops it when off. The first start without the Accessibility
+    /// permission explains it once (the shell's alert), then asks macOS. The reader is cheap while the player is absent.
+    private func applyNowPlaying() {
+        let want = settings.showNowPlaying
+        guard want != nowPlayingStarted else { return }
+        nowPlayingStarted = want
+        if want {
+            if !nowPlayingTrust.isTrusted(), !nowPlayingTrustAsked {
+                nowPlayingTrustAsked = true
+                onNowPlayingTrustNeeded?()
+                nowPlayingTrust.requestTrust()
+            }
+            nowPlayingSource.start()
+            nowPlaying = nowPlayingSource.current
+        } else {
+            nowPlayingSource.stop()
+            nowPlaying = nil
+        }
     }
 }
+

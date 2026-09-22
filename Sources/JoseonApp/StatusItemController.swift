@@ -22,6 +22,10 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     /// costs about 2 ms of main-thread time per update — the button cell draws, AppKit updates the status
     /// item scene, and it draws the item again for its replicants. New layer contents cost one small commit.
     private let graphView = MiniGraphLayerView()
+    /// The now-playing text to the right of the graph. Hidden, and the item no wider than before, while no track is known.
+    private let nowPlayingView = NowPlayingView(style: .menuBar)
+    /// Room after the marquee, so the text does not touch the next menu bar item.
+    private static let marqueeTrailing: CGFloat = 4
     /// JOSEON_MINI_MODE=image selects the old `button.image` path (for A/B measurements).
     private let usesLayer = ProcessInfo.processInfo.environment["JOSEON_MINI_MODE"] != "image"
     private var lastImage: NSImage?
@@ -77,9 +81,13 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             button.setAccessibilityHelp("Shows the spectrum of the audio this Mac plays. Press to open the Joseon popover.")
             if usesLayer {
                 graphView.frame = button.bounds
-                graphView.autoresizingMask = [.width, .height]
+                graphView.autoresizingMask = [.height]
                 graphView.onAppearanceChange = { [weak self] in self?.redraw() }
                 button.addSubview(graphView)
+                nowPlayingView.frame = NSRect(x: button.bounds.width, y: 0, width: 0, height: button.bounds.height)
+                nowPlayingView.autoresizingMask = [.height]
+                nowPlayingView.isHidden = true
+                button.addSubview(nowPlayingView)
             }
         }
 
@@ -100,7 +108,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         popover.animates = !Palette.reduceMotion
         popover.delegate = self
         popover.appearance = NSAppearance(named: .darkAqua)
-        let content = PopoverView(model: model, readouts: readouts, spectrum: popoverSpectrum, actions: ShellActions(
+        let content = PopoverView(model: model, settings: model.settings, readouts: readouts, spectrum: popoverSpectrum, actions: ShellActions(
             openMainWindow: { [weak self] in self?.popover.performClose(nil); actions.openMainWindow() },
             openSettings: { [weak self] in self?.popover.performClose(nil); actions.openSettings() },
             openPrivacySettings: actions.openPrivacySettings,
@@ -109,12 +117,12 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         host.sizingOptions = [.preferredContentSize]
         popover.contentViewController = host
 
-        settings.$miniGraphWidth
+        // The item's length and its two parts: the graph slot, and the now-playing text while a track is known.
+        Publishers.CombineLatest4(settings.$miniGraphWidth, settings.$showNowPlaying, settings.$nowPlayingInMenuBar, settings.$nowPlayingMenuBarWidth)
+            .map { _ in () }
+            .merge(with: model.$nowPlaying.map { _ in () }, settings.$nowPlayingShowsHiRes.map { _ in () })
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] width in
-                self?.item.length = CGFloat(width) + 8
-                self?.redraw()
-            }
+            .sink { [weak self] in self?.updateLayout() }
             .store(in: &cancellables)
         settings.$miniGraphColor.map { _ in () }
             .merge(with: settings.$tiltDBPerOctave.map { _ in () })
@@ -139,6 +147,30 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     func shutdown() {
         timer?.invalidate()
         timer = nil
+    }
+
+    /// The status item: the graph slot (graph width + 8) and, while a track is known and the settings allow, the
+    /// now-playing text to its right. Without a track the item is as wide as it was before the feature.
+    private func updateLayout() {
+        let track = model.nowPlaying
+        let showMarquee = usesLayer && track != nil && settings.showNowPlaying && settings.nowPlayingInMenuBar
+        let graphSlot = CGFloat(settings.miniGraphWidth) + 8
+        let marqueeWidth: CGFloat = showMarquee ? CGFloat(settings.nowPlayingMenuBarWidth) : 0
+        let length = graphSlot + (showMarquee ? marqueeWidth + Self.marqueeTrailing : 0)
+        if item.length != length { item.length = length }
+        let text = showMarquee ? track.map { NowPlayingMarquee.displayText(for: $0, showsHiRes: settings.nowPlayingShowsHiRes) } ?? "" : ""
+        if let button = item.button {
+            let height = button.bounds.height
+            graphView.frame = NSRect(x: 0, y: 0, width: graphSlot, height: height)
+            nowPlayingView.frame = NSRect(x: graphSlot, y: 0, width: marqueeWidth, height: height)
+            // The marquee passes clicks and tooltips to the button: the button carries the full text.
+            button.toolTip = text.isEmpty ? "Joseon" : "Joseon \u{2014} \(text)"
+            button.setAccessibilityLabel(text.isEmpty ? "Joseon mini spectrum" : "Joseon mini spectrum. Now playing: \(text)")
+        }
+        nowPlayingView.showsHiRes = settings.nowPlayingShowsHiRes
+        nowPlayingView.nowPlaying = showMarquee ? track : nil
+        nowPlayingView.isHidden = !showMarquee
+        redraw()
     }
 
     private func reschedule() {
@@ -240,6 +272,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         menu.addItem(ClosureMenuItem(title: "Open Joseon", checked: false, handler: actions.openMainWindow))
         menu.addItem(ClosureMenuItem(title: "Reset Measurement", checked: false) { [weak self] in self?.model.resetMeasurement() })
         menu.addItem(ClosureMenuItem(title: "Settings…", checked: false, handler: actions.openSettings))
+        menu.addItem(ClosureMenuItem(title: "Now Playing in Menu Bar", checked: settings.nowPlayingInMenuBar) { [weak self] in
+            self?.settings.nowPlayingInMenuBar.toggle()
+        })
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem(title: "Quit Joseon", checked: false, handler: actions.quit))
         item.menu = menu
@@ -355,6 +390,8 @@ final class PopoverReadouts: ObservableObject {
     }
 
     @Published private(set) var values = Values()
+    /// True while the popover is open. The now-playing marquee runs its timer only then.
+    @Published private(set) var isRunning = false
     private let frameProvider: FrameProvider
     private var timer: Timer?
 
@@ -362,6 +399,7 @@ final class PopoverReadouts: ObservableObject {
 
     func start() {
         stop()
+        isRunning = true
         update()
         let t = Timer(timeInterval: 0.2, repeats: true) { [weak self] _ in self?.update() }
         t.tolerance = 0.05
@@ -372,6 +410,7 @@ final class PopoverReadouts: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
+        isRunning = false
     }
 
     /// A level at the floor means "no measurement yet": show a dash, not a number.
@@ -402,6 +441,7 @@ struct PanelHost: NSViewRepresentable {
 
 struct PopoverView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var settings: AppSettings
     @ObservedObject var readouts: PopoverReadouts
     let spectrum: SpectrumView
     var actions: ShellActions
@@ -410,8 +450,13 @@ struct PopoverView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 StateBadge(state: model.header.state)
-                StreamBlock(header: model.header)
+                // The track title after the source name ("Qobuz"), small and grey; it scrolls when it does not fit.
+                StreamBlock(header: model.header,
+                            nowPlaying: settings.showNowPlaying ? model.nowPlaying : nil,
+                            showsHiRes: settings.nowPlayingShowsHiRes,
+                            marqueeActive: readouts.isRunning)
                 Spacer(minLength: 0)
+
             }
 
             PanelHost(view: spectrum)

@@ -60,6 +60,8 @@ final class AppSettings: ObservableObject {
     static let tiltChoices: [Double] = [0, 3, 4.5]
     static let dbRangeChoices = [60, 96, 120]
     static let miniWidthChoices = [44, 64, 96]
+    /// Now playing in the menu bar: points of scrolling text next to the mini graph.
+    static let nowPlayingWidthChoices = [100, 140, 200]
     static let historyChoices = [10, 20, 60]
     /// Session timeline: seconds across the strip (5, 15 or 30 minutes).
     static let timelineWindowChoices = [300, 900, 1800]
@@ -109,6 +111,15 @@ final class AppSettings: ObservableObject {
     @Published var miniGraphWidth: Int { didSet { defaults.set(miniGraphWidth, forKey: "miniGraphWidth") } }
     @Published var miniGraphColor: MiniGraphColor { didSet { defaults.set(miniGraphColor.rawValue, forKey: "miniGraphColor") } }
     @Published var showDockIcon: Bool { didSet { defaults.set(showDockIcon, forKey: "showDockIcon") } }
+
+    // Now playing: the track title read from the player window (Qobuz) through macOS Accessibility.
+    /// Read the title at all (popover header; the menu bar with `nowPlayingInMenuBar`).
+    @Published var showNowPlaying: Bool { didSet { defaults.set(showNowPlaying, forKey: "showNowPlaying") } }
+    /// The scrolling title next to the mini graph, while a track is known.
+    @Published var nowPlayingInMenuBar: Bool { didSet { defaults.set(nowPlayingInMenuBar, forKey: "nowPlayingInMenuBar") } }
+    @Published var nowPlayingMenuBarWidth: Int { didSet { defaults.set(nowPlayingMenuBarWidth, forKey: "nowPlayingMenuBarWidth") } }
+    /// " · Hi-Res" after the title when the player marks the stream as hi-res.
+    @Published var nowPlayingShowsHiRes: Bool { didSet { defaults.set(nowPlayingShowsHiRes, forKey: "nowPlayingShowsHiRes") } }
     @Published var demoMode: Bool { didSet { defaults.set(demoMode, forKey: "demoMode") } }
     /// Empty string means "None".
     @Published var headphoneName: String { didSet { defaults.set(headphoneName, forKey: "headphoneName") } }
@@ -131,6 +142,7 @@ final class AppSettings: ObservableObject {
             "miniGraphWidth": 64, "miniGraphColor": MiniGraphColor.template.rawValue, "showDockIcon": true, "demoMode": false, "targetName": "",
             "hasSeenWelcome": false, "mainWindowWasOpen": true, "loudnessTarget": LoudnessTarget.off.rawValue,
             "autoResetAfterSilence": true,
+            "showNowPlaying": true, "nowPlayingInMenuBar": true, "nowPlayingMenuBarWidth": 140, "nowPlayingShowsHiRes": true,
             "showTimeline": true, "timelineWindowSeconds": 900, "timelineShowBands": true, "timelineShowEarLane": false,
         ])
         defaults.register(defaults: ["comparisonLevelMatch": true, "comparisonHeadphoneMode": false])
@@ -158,6 +170,11 @@ final class AppSettings: ObservableObject {
         miniGraphWidth = pick(defaults.integer(forKey: "miniGraphWidth"), from: Self.miniWidthChoices, fallback: 64)
         miniGraphColor = MiniGraphColor(rawValue: defaults.string(forKey: "miniGraphColor") ?? "") ?? .template
         showDockIcon = defaults.bool(forKey: "showDockIcon")
+        showNowPlaying = defaults.bool(forKey: "showNowPlaying")
+        nowPlayingInMenuBar = defaults.bool(forKey: "nowPlayingInMenuBar")
+        nowPlayingMenuBarWidth = pick(defaults.integer(forKey: "nowPlayingMenuBarWidth"), from: Self.nowPlayingWidthChoices, fallback: 140)
+        nowPlayingShowsHiRes = defaults.bool(forKey: "nowPlayingShowsHiRes")
+
         demoMode = defaults.bool(forKey: "demoMode")
         // "headphoneName" has no registered default: a missing value means the user never chose.
         hasStoredHeadphoneChoice = defaults.object(forKey: "headphoneName") != nil

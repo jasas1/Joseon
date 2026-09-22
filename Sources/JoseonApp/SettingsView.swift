@@ -107,6 +107,25 @@ struct SettingsView: View {
             .listRowBackground(Color.joseonPanel)
 
             Section {
+                Toggle("Show now playing", isOn: $settings.showNowPlaying)
+                    .help("The artist and track title, read from the Qobuz window through macOS Accessibility. Shown after the source name in the menu bar popover.")
+                Toggle("Show in menu bar", isOn: $settings.nowPlayingInMenuBar)
+                    .disabled(!settings.showNowPlaying)
+                    .help("Scrolls next to the mini graph while a track is known. The menu bar item is as wide as before when nothing plays.")
+                Picker("Menu bar width", selection: $settings.nowPlayingMenuBarWidth) {
+                    ForEach(AppSettings.nowPlayingWidthChoices, id: \.self) { Text("\($0) pt").tag($0) }
+                }
+                .disabled(!settings.showNowPlaying || !settings.nowPlayingInMenuBar)
+                Toggle("Mark Hi-Res streams", isOn: $settings.nowPlayingShowsHiRes)
+                    .disabled(!settings.showNowPlaying)
+                    .help("Adds “Hi-Res” after the title when the player marks the stream as hi-res")
+                Text("Joseon reads only the title text of the player window. Nothing is recorded.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            } header: { SettingsSectionHeader(title: "Now playing") }
+            .listRowBackground(Color.joseonPanel)
+
+
+            Section {
                 Toggle("Launch at login", isOn: Binding(
                     get: { loginItem.isEnabled },
                     set: { loginItem.setEnabled($0) }))
