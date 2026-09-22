@@ -16,7 +16,7 @@ extension PlaybackCalibration {
     ///
     /// A cheap true-RMS multimeter reads a 400 Hz sine to a few percent (well under 1 dB). The
     /// rest is the knob moving between the measurement and the listening, and the two channels
-    /// not being equal. The figure `docs/specs/spl-00-overview.md` asks for; not optimistic.
+    /// not being equal. The figure the level-at-the-ear design asks for; not optimistic.
     public static let measuredToneUncertaintyDB: Double = 2
 
     /// The same measurement WITHOUT the headphones plugged in: an amplifier with a high output

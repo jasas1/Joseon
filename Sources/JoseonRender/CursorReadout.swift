@@ -4,7 +4,7 @@ import simd
 import JoseonCore
 
 // The linked cursor: what every panel shares. The numbers, the one-line readout of the header row, the hairline.
-// See `docs/specs/linked-cursor.md`. A panel without a link never gets here: `PanelRenderer.cursorLinked` is false.
+// Linked cursor: one frequency, the same place on every panel. A panel without a link never gets here: `PanelRenderer.cursorLinked` is false.
 
 /// One part of a cursor readout ("392.0 Hz", "G4 +0 ¢", "Mid −41.2 dB"). `rank`: 0 = the most important. A row that is
 /// too short drops the highest ranks first; the parts that stay keep their reading order.

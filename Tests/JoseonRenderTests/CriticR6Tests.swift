@@ -3,7 +3,7 @@ import AppKit
 import JoseonCore
 @testable import JoseonRender
 
-/// Critic round 6 (`docs/reviews/critic-r6.md`): single-defect fixes, one test (or more) per defect. Review images go to
+/// Design review round 6: single-defect fixes, one test (or more) per defect. Review images go to
 /// `RenderTestSupport.outputDirectory` (set JOSEON_RENDER_OUT), with the prefix `cr6-`.
 final class CriticR6Tests: XCTestCase {
     static func session(_ panel: PanelKind, _ frames: [AnalysisFrame], _ settings: OffscreenRenderer.Settings = .init(), size: CGSize,

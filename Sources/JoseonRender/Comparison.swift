@@ -13,7 +13,7 @@ public enum ComparisonMode: Sendable {
 /// The math of A/B compare: the reference "A" (a `ComparisonSnapshot`) against the live long-term curve "B".
 /// One instance per panel; the buffers keep their size, so a frame allocates nothing.
 ///
-/// Rules (see `docs/specs/ab-compare.md`):
+/// Rules of the A/B compare design:
 /// - Only long-term curves are compared (`snapshot.averageDB` against `spectrum.average`), never the live Mid curve.
 /// - Like with like: the display tilt of each curve is taken out first (`tilt * log2(f / 1 kHz)`), so a change of the
 ///   tilt setting between capture and now changes nothing in the difference.

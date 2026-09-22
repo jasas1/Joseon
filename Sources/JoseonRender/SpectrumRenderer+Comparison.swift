@@ -4,7 +4,7 @@ import simd
 import JoseonCore
 
 // A/B compare in the spectrum: the calm reference trace "A", the difference lane `B − A` under the plot, the second
-// headphone response, and the words that go with them. The math is `ComparisonCurves`. See `docs/specs/ab-compare.md`.
+// headphone response, and the words that go with them. The math is `ComparisonCurves`; the rules are listed in `Comparison.swift`.
 
 /// What the difference lane shows right now.
 enum LaneState: Hashable {

@@ -4,7 +4,7 @@ import JoseonCore
 
 /// The session timeline panel: the last minutes of listening as lanes (loudness, true peak, the level at the ear when it
 /// is known, tone) over one time axis, with track flags, clip and over marks, stress-flag spans and silence.
-/// See `docs/specs/session-timeline.md`.
+/// The session timeline view; the record model is in `TimelineModel.swift`, the picture in `TimelineRenderer.swift`.
 ///
 /// Data: the view pulls a `SessionSnapshot` from `sessionProvider` at most once per second, and once more when the shared
 /// cursor moved. A snapshot with the revision already on screen costs nothing. The panel does not read analysis frames on

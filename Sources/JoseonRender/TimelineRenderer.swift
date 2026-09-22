@@ -3,7 +3,7 @@ import Metal
 import simd
 import JoseonCore
 
-/// The session timeline: the last minutes of listening as lanes over one time axis (`docs/specs/session-timeline.md`).
+/// The session timeline: the last minutes of listening as lanes over one time axis.
 ///
 /// Lanes, top to bottom: Loudness (short-term as a soft band, the momentary maximum as a thin line, the target dotted),
 /// Peak (true peak per second as stems, 0 dBTP in red, overs red, clip ticks on the top edge), At the ear (only with data),

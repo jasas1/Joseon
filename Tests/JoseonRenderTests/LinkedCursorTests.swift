@@ -3,7 +3,7 @@ import AppKit
 import JoseonCore
 @testable import JoseonRender
 
-/// The linked cursor (`docs/specs/linked-cursor.md`): one frequency, the same place on every panel's own axis; honest
+/// The linked cursor: one frequency, the same place on every panel's own axis; honest
 /// numbers; pointer, click and keyboard handling through the entry points the events call; coalesced redraws.
 final class LinkedCursorTests: XCTestCase {
     private static let frames = Array(RealFrames.demo(seconds: 6).suffix(240))

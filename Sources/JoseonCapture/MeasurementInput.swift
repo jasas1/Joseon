@@ -3,7 +3,7 @@ import AVFoundation
 import CoreAudio
 import Foundation
 
-// Measurement microphone input (spec `docs/specs/mic-input.md`, part 1).
+// Measurement microphone input, part 1: device facts and the input stream.
 //
 // Lists the input devices, opens ONE of them with an `AudioDeviceIOProc` on the device itself
 // (no aggregate device, no AVCaptureSession, no AVAudioEngine) and delivers one channel as mono

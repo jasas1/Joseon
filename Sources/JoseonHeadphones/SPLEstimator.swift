@@ -136,7 +136,7 @@ public struct SPLDoseState: Equatable, Sendable, Codable {
 
 /// Sound level at the ear, from third-octave band levels plus a calibration and a headphone.
 ///
-/// Chain per band `b` and channel, exactly as `docs/specs/spl-00-overview.md` states it:
+/// Chain per band `b` and channel, as the level-at-the-ear design states it:
 ///
 ///     eardrum_b = L_b + 3.01 + 20·log10(fullScaleVrms) + dbSPLPerVolt + response(f_b)
 ///

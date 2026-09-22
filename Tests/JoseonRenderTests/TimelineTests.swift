@@ -3,7 +3,7 @@ import AppKit
 import JoseonCore
 @testable import JoseonRender
 
-/// The session timeline (`docs/specs/session-timeline.md`): the record model (windows, spans, gaps, numbers), the picture,
+/// The session timeline: the record model (windows, spans, gaps, numbers), the picture,
 /// the cursor in both directions, the keyboard, and the rule that nothing is drawn when nothing changed.
 final class TimelineTests: XCTestCase {
     private static let session = SyntheticFrames.demoSession(minutes: 25)
