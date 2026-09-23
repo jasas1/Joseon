@@ -20,13 +20,18 @@ public struct StreamInfo: Equatable, Sendable {
     public var bitDepth: Int?
     /// Names of the processes that make sound now, for example ["Qobuz"].
     public var activeSources: [String]
+    /// True when `deviceName` is the macOS default output device, false when the capture follows
+    /// the device a player chose itself (for example Qobuz → USB DAC). Nil when unknown (demo, synthetic).
+    public var deviceIsDefault: Bool? = nil
 
-    public init(sampleRate: Double, channelCount: Int, deviceName: String, bitDepth: Int? = nil, activeSources: [String] = []) {
+    public init(sampleRate: Double, channelCount: Int, deviceName: String, bitDepth: Int? = nil, activeSources: [String] = [],
+                deviceIsDefault: Bool? = nil) {
         self.sampleRate = sampleRate
         self.channelCount = channelCount
         self.deviceName = deviceName
         self.bitDepth = bitDepth
         self.activeSources = activeSources
+        self.deviceIsDefault = deviceIsDefault
     }
 }
 

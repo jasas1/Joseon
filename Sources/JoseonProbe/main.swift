@@ -105,7 +105,8 @@ func json(_ d: AudioDeviceDescription) -> [String: Any] {
 func json(_ s: StreamInfo?) -> Any {
     guard let s else { return NSNull() }
     return ["sampleRate": s.sampleRate, "channelCount": s.channelCount, "deviceName": s.deviceName,
-            "bitDepth": s.bitDepth.map { $0 as Any } ?? NSNull(), "activeSources": s.activeSources]
+            "bitDepth": s.bitDepth.map { $0 as Any } ?? NSNull(), "activeSources": s.activeSources,
+            "deviceIsDefault": s.deviceIsDefault.map { $0 as Any } ?? NSNull()]
 }
 
 /// Device ids this process can see. A private aggregate device shows only here, in its owner.
@@ -152,7 +153,9 @@ func runLive(source: AudioSource, mode: String, seconds: Double) -> Never {
         var windowFrames = 0, totalFrames = 0, nonZeroSamples = 0
         var frame = engine.latestFrame
 
-        func drain() {
+        /// Empties the ring buffer, but stops at `deadline`: a debug build of the engine runs slower
+        /// than real time at 96 kHz, and the ring then never empties (seen with a USB DAC at 96 kHz).
+        func drain(deadline: Double) {
             var n = source.ringBuffer.read(left: left, right: right, maxCount: capacity)
             while n > 0 {
                 for i in 0..<n {
@@ -161,12 +164,13 @@ func runLive(source: AudioSource, mode: String, seconds: Double) -> Never {
                 }
                 windowFrames += n
                 frame = engine.processNow(left: left, right: right, count: n, sampleRate: source.ringBuffer.sampleRate)
+                if ProcessInfo.processInfo.systemUptime - started >= deadline { return }
                 n = source.ringBuffer.read(left: left, right: right, maxCount: capacity)
             }
         }
 
         while true {
-            drain()
+            drain(deadline: min(nextReport, seconds))
             let t = ProcessInfo.processInfo.systemUptime - started
             if t >= nextReport {
                 totalPeak = max(totalPeak, windowPeak)
@@ -290,10 +294,21 @@ func runDevices() -> Never {
         emit(["event": "devices", "error": "No default output device"])
         exit(1)
     }
+    let playing = AudioSystem.playingProcesses()
+    let chosen = AudioSystem.chosenPlaybackDevice(playing: playing)
     emit([
         "event": "devices",
         "defaultOutput": json(device),
         "activeSources": AudioSystem.activeSources(),
+        // Per playing process: the output devices it plays to (output scope), so a player that picked
+        // its own DAC shows up next to the default.
+        "playingProcesses": playing.map { p -> [String: Any] in
+            ["pid": Int(p.pid), "bundleID": p.bundleID, "name": p.name,
+             "outputDevices": p.devices.map { ["id": Int($0.id), "name": $0.name, "uid": $0.uid, "nominalSampleRate": $0.nominalSampleRate] as [String: Any] }]
+        },
+        // The device the tap would clock on now (PlaybackDeviceChooser, no current choice).
+        "chosenDevice": chosen.map { json($0) as Any } ?? NSNull(),
+        "chosenDeviceIsDefault": chosen.map { $0.id == device.id } as Any? ?? NSNull(),
         "allDevices": AudioSystem.allDevices().map { ["id": Int($0.id), "name": $0.name, "transport": $0.transport, "aggregate": $0.isAggregate] as [String: Any] },
         "visibleTaps": AudioSystem.tapCount(),
     ])

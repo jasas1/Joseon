@@ -82,6 +82,29 @@ enum HAL {
         value(device, kAudioDevicePropertyHogMode, initial: pid_t(-1)) ?? -1
     }
 
+    /// Address of the "which devices does this process play to" property.
+    ///
+    /// SCOPE TRAP: `kAudioProcessPropertyDevices` must be read with `kAudioObjectPropertyScopeOutput`.
+    /// With the global scope the HAL answers an empty array for a process that is playing
+    /// (measured 2026-09-22: Qobuz → ["Woo Audio"] in output scope, [] in global scope).
+    static let processOutputDevicesAddress = address(kAudioProcessPropertyDevices, scope: kAudioObjectPropertyScopeOutput)
+
+    /// Output devices a process object plays to now (see `processOutputDevicesAddress` for the scope trap).
+    static func processOutputDevices(_ process: AudioObjectID) -> [AudioObjectID] {
+        array(process, processOutputDevicesAddress.mSelector, scope: processOutputDevicesAddress.mScope, filler: AudioObjectID(0))
+    }
+
+    /// The device with this UID, or nil when no visible device has it (unplugged).
+    static func device(uid: String) -> AudioObjectID? {
+        guard !uid.isEmpty else { return nil }
+        return array(system, kAudioHardwarePropertyDevices, filler: AudioObjectID(0))
+            .first { string($0, kAudioDevicePropertyDeviceUID) == uid }
+    }
+
+    static func deviceUID(_ device: AudioObjectID) -> String? {
+        string(device, kAudioDevicePropertyDeviceUID)
+    }
+
     static func fourCC(_ v: UInt32) -> String {
         let bytes = [UInt8(v >> 24 & 0xFF), UInt8(v >> 16 & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v & 0xFF)]
         if bytes.allSatisfy({ $0 >= 0x20 && $0 < 0x7F }) { return String(bytes: bytes, encoding: .ascii) ?? "\(v)" }
@@ -176,15 +199,52 @@ public enum AudioSystem {
 
     /// Names of the processes that run audio output now, without this process. Sorted, no duplicates.
     public static func activeSources() -> [String] {
+        Set(playingProcesses().map(\.name)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    /// Bundle id prefix of every Joseon process (app, probe). None of them plays audio.
+    public static let ownBundlePrefix = "app.joseon."
+
+    /// True for a Joseon process: this pid, or any process with a Joseon bundle id.
+    ///
+    /// Measured 2026-09-22: the running Joseon app shows up as a "running output" process whose
+    /// output-scope device is the default output (its capture aggregate has an output side that
+    /// carries zeros). Counted as a player, it tied with Qobuz and dragged the choice to the default.
+    public static func isOwnProcess(pid: Int32, bundleID: String, me: Int32 = getpid(),
+                                    ownBundleID: String? = Bundle.main.bundleIdentifier) -> Bool {
+        if pid == me { return true }
+        if bundleID.hasPrefix(ownBundlePrefix) { return true }
+        if let ownBundleID, !ownBundleID.isEmpty, bundleID == ownBundleID { return true }
+        return false
+    }
+
+    /// Every process that runs audio output now, without any Joseon process, with the output devices it plays to.
+    /// One HAL walk; the sources timer calls it once a second. Order: process object list order.
+    public static func playingProcesses() -> [ProcessPlayback] {
         let me = getpid()
-        var names = Set<String>()
+        var result: [ProcessPlayback] = []
         for process in HAL.array(HAL.system, kAudioHardwarePropertyProcessObjectList, filler: AudioObjectID(0)) {
             guard let running = HAL.value(process, kAudioProcessPropertyIsRunningOutput, initial: UInt32(0)), running != 0 else { continue }
-            guard let pid = HAL.value(process, kAudioProcessPropertyPID, initial: pid_t(-1)), pid > 0, pid != me else { continue }
+            guard let pid = HAL.value(process, kAudioProcessPropertyPID, initial: pid_t(-1)), pid > 0 else { continue }
             let bundleID = HAL.string(process, kAudioProcessPropertyBundleID) ?? ""
-            names.insert(displayName(pid: pid, bundleID: bundleID))
+            guard !isOwnProcess(pid: pid, bundleID: bundleID, me: me) else { continue }
+            let devices = HAL.processOutputDevices(process).compactMap { id -> PlaybackDevice? in
+                guard let uid = HAL.deviceUID(id), !uid.isEmpty else { return nil }
+                return PlaybackDevice(id: id, uid: uid,
+                                      name: HAL.string(id, kAudioObjectPropertyName) ?? "Unknown device",
+                                      nominalSampleRate: HAL.value(id, kAudioDevicePropertyNominalSampleRate, initial: Double(0)) ?? 0)
+            }
+            result.append(ProcessPlayback(pid: pid, bundleID: bundleID, name: displayName(pid: pid, bundleID: bundleID), devices: devices))
         }
-        return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        return result
+    }
+
+    /// The device the tap should clock on right now, by `PlaybackDeviceChooser` with no current choice.
+    /// Nil only when there is no default output device and nothing plays.
+    public static func chosenPlaybackDevice(playing: [ProcessPlayback]? = nil) -> AudioDeviceDescription? {
+        let defaultUID = HAL.defaultOutputDevice().flatMap(HAL.deviceUID)
+        let uid = PlaybackDeviceChooser.choose(playing: playing ?? playingProcesses(), current: nil, defaultOutput: defaultUID)
+        return uid.flatMap(HAL.device(uid:)).map { describe(deviceID: $0) }
     }
 
     /// pid → app name. Helper processes (for example a browser's audio helper) have no
@@ -203,5 +263,88 @@ public enum AudioSystem {
             }
         }
         return bundleID.isEmpty ? "pid \(pid)" : bundleID
+    }
+}
+
+// MARK: - Which device to clock the tap on
+
+/// An output device a process plays to.
+public struct PlaybackDevice: Equatable, Sendable {
+    public var id: UInt32
+    public var uid: String
+    public var name: String
+    public var nominalSampleRate: Double
+
+    public init(id: UInt32 = 0, uid: String, name: String = "", nominalSampleRate: Double = 0) {
+        self.id = id
+        self.uid = uid
+        self.name = name
+        self.nominalSampleRate = nominalSampleRate
+    }
+}
+
+/// A process that runs audio output now, and the output devices it plays to.
+public struct ProcessPlayback: Equatable, Sendable {
+    public var pid: Int32
+    public var bundleID: String
+    /// Display name, for example "Qobuz".
+    public var name: String
+    /// Output-scope devices. A player that mixes into a device it did not open itself still lists it here.
+    public var devices: [PlaybackDevice]
+
+    public init(pid: Int32 = 0, bundleID: String = "", name: String, devices: [PlaybackDevice]) {
+        self.pid = pid
+        self.bundleID = bundleID
+        self.name = name
+        self.devices = devices
+    }
+
+    /// Test convenience: a process by name that plays to these device UIDs.
+    public init(name: String, deviceUIDs: [String]) {
+        self.init(name: name, devices: deviceUIDs.map { PlaybackDevice(uid: $0) })
+    }
+
+    public var deviceUIDs: [String] { devices.map(\.uid) }
+}
+
+/// Decides which output device the capture aggregate takes as its clock (main sub-device).
+///
+/// The macOS default output device is the wrong answer when a player picks its own device:
+/// Qobuz → USB DAC at 96 kHz while the default is a display at 48 kHz. Then the tap would run
+/// at 48 kHz and lose everything above 24 kHz. So the choice follows the playing processes.
+///
+/// Pure: no HAL calls, so the rules are unit-tested.
+public enum PlaybackDeviceChooser {
+    /// Rules, in order:
+    /// (a) `current` still has a playing process → keep it (no flapping while it plays);
+    /// (b) else the device of the playing process that comes first in a stable order:
+    ///     most playing processes on the device, then the lowest process name on it, then the UID;
+    /// (c) else `defaultOutput`.
+    /// Processes with no device and empty UIDs are ignored. Nil only when (c) has nothing.
+    public static func choose(playing: [ProcessPlayback], current: String?, defaultOutput: String?) -> String? {
+        if let current, !current.isEmpty, playing.contains(where: { $0.deviceUIDs.contains(current) }) {
+            return current
+        }
+        if let best = rank(playing).first { return best }
+        return defaultOutput.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// Candidate device UIDs in the rule (b) order.
+    public static func rank(_ playing: [ProcessPlayback]) -> [String] {
+        var count: [String: Int] = [:]
+        var firstName: [String: String] = [:]
+        for process in playing {
+            for uid in Set(process.deviceUIDs) where !uid.isEmpty {
+                count[uid, default: 0] += 1
+                if let name = firstName[uid], name.localizedCaseInsensitiveCompare(process.name) != .orderedDescending { continue }
+                firstName[uid] = process.name
+            }
+        }
+        return count.keys.sorted { a, b in
+            if count[a]! != count[b]! { return count[a]! > count[b]! }
+            let byName = firstName[a]!.localizedCaseInsensitiveCompare(firstName[b]!)
+            if byName != .orderedSame { return byName == .orderedAscending }
+            return a < b
+        }
     }
 }

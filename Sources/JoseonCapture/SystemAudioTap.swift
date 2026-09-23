@@ -18,7 +18,7 @@ public enum CaptureError: Error, CustomStringConvertible {
         case .tapCreationFailed(let s): return "AudioHardwareCreateProcessTap failed: \(describeOSStatus(s))"
         case .aggregateDeviceFailed(let s): return "AudioHardwareCreateAggregateDevice failed: \(describeOSStatus(s))"
         case .ioProcFailed(let s): return "IOProc setup failed: \(describeOSStatus(s))"
-        case .noOutputDevice: return "No default output device"
+        case .noOutputDevice: return "No output device to capture"
         case .notImplemented: return "Capture not implemented"
         }
     }
@@ -71,13 +71,18 @@ public final class SystemAudioTap: AudioSource, @unchecked Sendable {
         stateLock.withLock { _running ? ProcessInfo.processInfo.systemUptime - _startUptime : 0 }
     }
 
-    /// True when another process holds exclusive (hog mode) access to the default output device.
-    /// Audio then bypasses the system mixer and the tap hears silence. Live query, cheap.
+    /// True when another process holds exclusive (hog mode) access to the capture device (the chosen
+    /// playback device while running, else the default output). Audio then bypasses the system mixer
+    /// and the tap hears silence. Live query, cheap.
     public var outputDeviceIsHogged: Bool {
-        guard let device = HAL.defaultOutputDevice() else { return false }
+        let chosen = stateLock.withLock { _captureDevice }
+        guard let device = chosen != kAudioObjectUnknown ? chosen : HAL.defaultOutputDevice() else { return false }
         let pid = HAL.hogPID(device)
         return pid != -1 && pid != getpid()
     }
+
+    /// UID of the device the tap clocks on now (`PlaybackDeviceChooser`). Nil when stopped.
+    public var captureDeviceUID: String? { stateLock.withLock { _captureDeviceUID } }
 
     /// The documented heuristic: running, silent for more than 3 s, some app plays audio,
     /// and hog mode does not explain the silence → "System Audio Recording" is likely denied.
@@ -102,6 +107,8 @@ public final class SystemAudioTap: AudioSource, @unchecked Sendable {
     private var _running = false
     private var _startUptime: Double = 0
     private var _lastRebuildError: CaptureError?
+    private var _captureDevice = AudioObjectID(kAudioObjectUnknown)
+    private var _captureDeviceUID: String?
 
     private let control = DispatchQueue(label: "joseon.capture.control", qos: .userInitiated)
     private let controlKey = DispatchSpecificKey<Bool>()
@@ -120,6 +127,12 @@ public final class SystemAudioTap: AudioSource, @unchecked Sendable {
     private var sourcesTimer: DispatchSourceTimer?
     private var activeSources: [String] = []
     private var rebuildGeneration = 0
+    /// UID the running graph clocks on. `PlaybackDeviceChooser` rule (a) keeps it while its process plays.
+    private var chosenDeviceUID: String?
+    /// A different choice seen by the sources timer, and for how many ticks in a row. Rebuild at 2.
+    private var pendingChoiceUID: String?
+    private var pendingChoiceTicks = 0
+    private static let choiceStableTicks = 2
 
     // Written by the IO thread, read anywhere. Single aligned words: no lock.
     private let signalFlag: UnsafeMutablePointer<Int32>
@@ -186,6 +199,9 @@ public final class SystemAudioTap: AudioSource, @unchecked Sendable {
         sourcesTimer?.cancel(); sourcesTimer = nil
         removeSystemListener()
         teardownGraph()
+        chosenDeviceUID = nil
+        pendingChoiceUID = nil
+        pendingChoiceTicks = 0
         stateLock.withLock { _running = false; _streamInfo = nil }
     }
 
@@ -198,9 +214,14 @@ public final class SystemAudioTap: AudioSource, @unchecked Sendable {
     // MARK: Build the tap → aggregate device → IOProc graph (control queue)
 
     private func build() throws {
-        guard let device = HAL.defaultOutputDevice(),
-              let deviceUID = HAL.string(device, kAudioDevicePropertyDeviceUID) else { throw CaptureError.noOutputDevice }
+        // 0. Which device clocks the aggregate: the one the playing apps use, not the default
+        //    (Qobuz → USB DAC at 96 kHz while the default is a display at 48 kHz).
+        guard let (device, deviceUID) = chooseDevice() else { throw CaptureError.noOutputDevice }
         outputDevice = device
+        chosenDeviceUID = deviceUID
+        pendingChoiceUID = nil
+        pendingChoiceTicks = 0
+        stateLock.withLock { _captureDevice = device; _captureDeviceUID = deviceUID }
 
         // 1. Global stereo tap: every process, mixed down to stereo, playback untouched.
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
@@ -275,7 +296,8 @@ public final class SystemAudioTap: AudioSource, @unchecked Sendable {
         status = AudioDeviceStart(aggregateID, proc)
         guard status == noErr else { throw CaptureError.ioProcFailed(status) }
 
-        // 5. Follow the output device.
+        // 5. Follow the chosen device. IsAlive covers an unplugged USB DAC: the rebuild then
+        //    re-runs the chooser, which no longer sees the device and falls back to rule (b)/(c).
         listen(device, kAudioDevicePropertyNominalSampleRate) { [weak self] in self?.outputRateChanged() }
         listen(device, kAudioDevicePropertyDeviceIsAlive) { [weak self] in self?.scheduleRebuild() }
         listen(device, kAudioDevicePropertyHogMode) { [weak self] in self?.publish() }
@@ -311,6 +333,27 @@ public final class SystemAudioTap: AudioSource, @unchecked Sendable {
         }
         rt = nil
         outputDevice = AudioObjectID(kAudioObjectUnknown)
+        stateLock.withLock { _captureDevice = AudioObjectID(kAudioObjectUnknown); _captureDeviceUID = nil }
+        // `chosenDeviceUID` stays: the next build keeps it while its process still plays (rule a).
+    }
+
+    /// `PlaybackDeviceChooser` on live HAL facts, resolved to a device that exists now.
+    /// A chosen UID whose device vanished (USB unplugged) is dropped and the rules run again without it.
+    private func chooseDevice() -> (AudioObjectID, String)? {
+        let defaultUID = HAL.defaultOutputDevice().flatMap(HAL.deviceUID)
+        var playing = AudioSystem.playingProcesses()
+        var current = chosenDeviceUID
+        var tried = Set<String>()
+        while true {
+            guard let uid = PlaybackDeviceChooser.choose(playing: playing, current: current, defaultOutput: defaultUID),
+                  !tried.contains(uid) else { return nil }
+            if let id = HAL.device(uid: uid) { return (id, uid) }
+            tried.insert(uid)
+            current = nil
+            playing = playing.map { p in
+                var p = p; p.devices.removeAll { $0.uid == uid }; return p
+            }
+        }
     }
 
     // MARK: Following changes (control queue)
@@ -377,7 +420,8 @@ public final class SystemAudioTap: AudioSource, @unchecked Sendable {
                 channelCount: self.captureChannels,
                 deviceName: HAL.string(device, kAudioObjectPropertyName) ?? "Unknown device",
                 bitDepth: bits,
-                activeSources: self.activeSources)
+                activeSources: self.activeSources,
+                deviceIsDefault: HAL.defaultOutputDevice().map { $0 == device })
             let changed: Bool = self.stateLock.withLock {
                 guard self._running, self._streamInfo != info else { return false }
                 self._streamInfo = info
@@ -393,16 +437,44 @@ public final class SystemAudioTap: AudioSource, @unchecked Sendable {
         let timer = DispatchSource.makeTimerSource(queue: sourcesQueue)
         timer.schedule(deadline: .now(), repeating: 1.0, leeway: .milliseconds(200))
         timer.setEventHandler { [weak self] in
-            let names = AudioSystem.activeSources()
+            // HAL reads happen here, off the control queue. The decision runs on `control`.
+            let playing = AudioSystem.playingProcesses()
+            let names = Set(playing.map(\.name)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            let defaultUID = HAL.defaultOutputDevice().flatMap(HAL.deviceUID)
             guard let self else { return }
             self.control.async { [weak self] in
-                guard let self, self.stateLock.withLock({ self._running }), names != self.activeSources else { return }
-                self.activeSources = names
-                self.publish()
+                guard let self, self.stateLock.withLock({ self._running }) else { return }
+                if names != self.activeSources {
+                    self.activeSources = names
+                    self.publish()
+                }
+                self.followPlaybackChoice(playing: playing, defaultUID: defaultUID)
             }
         }
         sourcesTimer = timer
         timer.resume()
+    }
+
+    /// One timer tick of the chooser (control queue). A new choice must hold for
+    /// `choiceStableTicks` ticks in a row before the graph is rebuilt on it: a player that
+    /// stops for a second between tracks must not drag the tap back to the default device.
+    private func followPlaybackChoice(playing: [ProcessPlayback], defaultUID: String?) {
+        let choice = PlaybackDeviceChooser.choose(playing: playing, current: chosenDeviceUID, defaultOutput: defaultUID)
+        guard choice != chosenDeviceUID else {
+            pendingChoiceUID = nil
+            pendingChoiceTicks = 0
+            return
+        }
+        if choice == pendingChoiceUID {
+            pendingChoiceTicks += 1
+        } else {
+            pendingChoiceUID = choice
+            pendingChoiceTicks = 1
+        }
+        guard pendingChoiceTicks >= Self.choiceStableTicks else { return }
+        pendingChoiceUID = nil
+        pendingChoiceTicks = 0
+        scheduleRebuild()   // build() runs the chooser again and adopts the new device
     }
 
     // MARK: Real-time IOProc
