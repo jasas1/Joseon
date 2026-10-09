@@ -103,6 +103,8 @@ struct SettingsView: View {
                 .help("Template follows the menu bar: white on a dark menu bar, black on a light one")
                 Toggle("Show Dock icon", isOn: $settings.showDockIcon)
                     .help("When off, Joseon shows only in the menu bar")
+                Toggle("Check for updates automatically", isOn: $settings.checkUpdatesAutomatically)
+                    .help("Joseon asks the project page for a newer version after the start and once a day. Nothing else is sent.")
             } header: { SettingsSectionHeader(title: "Menu bar") }
             .listRowBackground(Color.joseonPanel)
 

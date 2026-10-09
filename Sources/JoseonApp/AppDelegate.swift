@@ -3,7 +3,8 @@ import SwiftUI
 import Combine
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
-    private let settings = AppSettings()
+    let settings = AppSettings()
+    let updater = Updater()
     private lazy var model = AppModel(settings: settings)
     private var mainWindowController: MainWindowController!
     private var statusController: StatusItemController!
@@ -61,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             mainWindowController.show()
             showWelcome()
         }
-        if DebugSnapshot.directory != nil { runSnapshots() }
+        if DebugSnapshot.directory != nil { runSnapshots() } else { Task { @MainActor in self.startAutomaticUpdateChecks() } }
     }
 
     /// Design-review mode (JOSEON_SNAPSHOT_DIR): draw every window into PNG files, then quit.
@@ -497,6 +498,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         let appMenu = NSMenu(title: "Joseon")
         appMenu.addItem(item("About Joseon", #selector(showAbout(_:))))
+        appMenu.addItem(item("Check for Updates…", #selector(checkForUpdates(_:))))
         appMenu.addItem(.separator())
         appMenu.addItem(item("Settings…", #selector(showSettings(_:)), key: ","))
         appMenu.addItem(item("Calibrate Level at the Ear…", #selector(showCalibration(_:))))

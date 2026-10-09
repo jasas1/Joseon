@@ -111,6 +111,8 @@ final class AppSettings: ObservableObject {
     @Published var miniGraphWidth: Int { didSet { defaults.set(miniGraphWidth, forKey: "miniGraphWidth") } }
     @Published var miniGraphColor: MiniGraphColor { didSet { defaults.set(miniGraphColor.rawValue, forKey: "miniGraphColor") } }
     @Published var showDockIcon: Bool { didSet { defaults.set(showDockIcon, forKey: "showDockIcon") } }
+    /// Ask the release list for a newer Joseon after the start and once a day.
+    @Published var checkUpdatesAutomatically: Bool { didSet { defaults.set(checkUpdatesAutomatically, forKey: "checkUpdatesAutomatically") } }
 
     // Now playing: the track title read from the player window (Qobuz) through macOS Accessibility.
     /// Read the title at all (popover header; the menu bar with `nowPlayingInMenuBar`).
@@ -141,7 +143,7 @@ final class AppSettings: ObservableObject {
             "showHeadphoneOverlay": true, "spectrogramHistorySeconds": 20, "layoutPreset": LayoutPreset.essential.rawValue,
             "miniGraphWidth": 64, "miniGraphColor": MiniGraphColor.template.rawValue, "showDockIcon": true, "demoMode": false, "targetName": "",
             "hasSeenWelcome": false, "mainWindowWasOpen": true, "loudnessTarget": LoudnessTarget.off.rawValue,
-            "autoResetAfterSilence": true,
+            "autoResetAfterSilence": true, "checkUpdatesAutomatically": true,
             "showNowPlaying": true, "nowPlayingInMenuBar": true, "nowPlayingMenuBarWidth": 140, "nowPlayingShowsHiRes": true,
             "showTimeline": true, "timelineWindowSeconds": 900, "timelineShowBands": true, "timelineShowEarLane": false,
         ])
@@ -170,6 +172,7 @@ final class AppSettings: ObservableObject {
         miniGraphWidth = pick(defaults.integer(forKey: "miniGraphWidth"), from: Self.miniWidthChoices, fallback: 64)
         miniGraphColor = MiniGraphColor(rawValue: defaults.string(forKey: "miniGraphColor") ?? "") ?? .template
         showDockIcon = defaults.bool(forKey: "showDockIcon")
+        checkUpdatesAutomatically = defaults.bool(forKey: "checkUpdatesAutomatically")
         showNowPlaying = defaults.bool(forKey: "showNowPlaying")
         nowPlayingInMenuBar = defaults.bool(forKey: "nowPlayingInMenuBar")
         nowPlayingMenuBarWidth = pick(defaults.integer(forKey: "nowPlayingMenuBarWidth"), from: Self.nowPlayingWidthChoices, fallback: 140)

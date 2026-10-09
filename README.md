@@ -21,6 +21,13 @@ Offscreen renders from the real analysis pipeline (`joseon-probe render`, demo s
 ![Spectrogram](docs/screenshots/spectrogram.png)
 ![Meters](docs/screenshots/meters.png)
 
+## Updates
+
+"Check for Updates…" in the Joseon menu asks the project page on GitHub for a newer version. Joseon also
+asks by itself after the start and once a day (Settings, "Check for updates automatically"). Nothing is
+sent but that request. A new version is put in place only when macOS confirms its signature and it comes
+from the same signing team as the app that runs.
+
 ## Build
 
 ```bash
