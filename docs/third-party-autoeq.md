@@ -65,6 +65,24 @@ The `smoothed`, `equalized_raw`, `equalized_smoothed` and `target` columns are n
 | Apple AirPods Pro 2 | `results/HypetheSonics/GRAS RA0045 in-ear/Apple Airpods Pro 2/Apple Airpods Pro 2.csv` | HypetheSonics, GRAS RA0045 rig |
 | Sony WH-1000XM5 | `results/oratory1990/over-ear/Sony WH-1000XM5/Sony WH-1000XM5.csv` | oratory1990 |
 
+### Headphone responses added on 2026-10-08
+
+Fetch date: **2026-10-08**. The steps are the ones of "How the data was processed" below. The
+script that made these five blocks was checked against two curves of the first set (Sennheiser
+HD 600, Apple AirPods Pro 2): the largest difference is 0.005 dB, which is the rounding to two
+decimals. The decimation error of the five was not measured.
+
+| Embedded name | AutoEq path (under `master/`) | Measurer |
+|---|---|---|
+| Beyerdynamic DT 900 Pro X | `results/oratory1990/over-ear/Beyerdynamic DT 900 Pro X/Beyerdynamic DT 900 Pro X.csv` | oratory1990 |
+| 64 Audio U12t (m15 module) | `results/HypetheSonics/GRAS RA0045 in-ear/64 Audio U12t (m15 Apex module)/64 Audio U12t (m15 Apex module).csv` | HypetheSonics, GRAS RA0045 rig |
+| 64 Audio U12t (m20 module) | `results/HypetheSonics/GRAS RA0045 in-ear/64 Audio U12t (m20 Apex module)/64 Audio U12t (m20 Apex module).csv` | HypetheSonics, GRAS RA0045 rig |
+| 64 Audio U12t (mX module) | `results/HypetheSonics/GRAS RA0045 in-ear/64 Audio U12t (mX Apex module)/64 Audio U12t (mX Apex module).csv` | HypetheSonics, GRAS RA0045 rig |
+| Xenns Mangird Tea Pro | `results/Jaytiss/in-ear/Xenns Mangird Tea Pro 2024/Xenns Mangird Tea Pro 2024.csv` | Jaytiss |
+
+Not in AutoEq on that date, and so not embedded: a "Tea Pro SE" (the Tea Pro stands in for it) and
+a "CrinEar Reference" (AutoEq has the CrinEar Meta and Daybreak only).
+
 ### Target curves
 
 | Embedded name | AutoEq path (under `master/`) |

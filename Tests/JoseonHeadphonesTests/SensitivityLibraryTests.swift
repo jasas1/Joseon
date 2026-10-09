@@ -52,11 +52,15 @@ final class SensitivityLibraryTests: XCTestCase {
     /// figure someone remembered.
     func testEveryEntryCitesItsSourceAndDate() {
         for (name, sensitivity) in HeadphoneSensitivityLibrary.byCurveName {
-            XCTAssertTrue(sensitivity.source.contains("2026-09-21"), "\(name) has no fetch date")
+            XCTAssertTrue(
+                sensitivity.source.contains("2026-09-21") || sensitivity.source.contains("2026-10-08"),
+                "\(name) has no fetch date"
+            )
             XCTAssertTrue(sensitivity.source.contains("fetched"), "\(name) does not say it was fetched")
             XCTAssertTrue(
                 sensitivity.source.contains("sennheiser") || sensitivity.source.contains("focal")
-                    || sensitivity.source.contains("audeze") || sensitivity.source.contains("sony"),
+                    || sensitivity.source.contains("audeze") || sensitivity.source.contains("sony")
+                    || sensitivity.source.contains("beyerdynamic") || sensitivity.source.contains("64audio"),
                 "\(name) does not cite a manufacturer domain"
             )
             XCTAssertFalse(sensitivity.source.isEmpty)
@@ -75,11 +79,13 @@ final class SensitivityLibraryTests: XCTestCase {
 
     // MARK: What is deliberately missing
 
-    /// The library covers exactly the six headphones whose makers publish a usable figure.
+    /// The library covers exactly the headphones whose makers publish a usable figure.
     func testTheLibraryHoldsOnlyVerifiedHeadphones() {
         XCTAssertEqual(Set(HeadphoneSensitivityLibrary.byCurveName.keys), [
             "Sennheiser HD 600", "Sennheiser HD 650", "Sennheiser HD 800 S",
             "Focal Utopia", "Audeze LCD-X (2021)", "Sony WH-1000XM5",
+            "Beyerdynamic DT 900 Pro X",
+            "64 Audio U12t (m15 module)", "64 Audio U12t (m20 module)", "64 Audio U12t (mX module)",
         ])
     }
 

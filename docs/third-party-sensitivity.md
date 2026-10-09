@@ -30,7 +30,7 @@ app asks the user for a number and says why.
 
 ## Sensitivity: what was found
 
-Six of the twelve embedded curves have a citable figure.
+Ten of the seventeen embedded curves have a citable figure. The last four rows were added on 2026-10-08.
 
 | Curve name | Published spec line, verbatim | Impedance | dB SPL / V used | Source URL |
 |---|---|---|---|---|
@@ -40,8 +40,16 @@ Six of the twelve embedded curves have a citable figure.
 | Focal Utopia | "Sensitivity 104dB SPL / 1mW @ 1kHz" | 80 Ohms | 114.97 | <https://dam.focal-naim.com/m/60e16a1d4cab5a65/original/FP_Utopia_EN-pdf.pdf> |
 | Audeze LCD-X (2021) | "Sensitivity 103 dB/1mW (at Drum Reference Point)" | 20 ohms | 119.99 | <https://www.audeze.com/products/lcd-x> |
 | Sony WH-1000XM5 | "Sensitivity: 102 dB/mW (when connecting via the headphone cable with the headset turned on)" | 48 Ω (1 kHz) | 115.19 | <https://helpguide.sony.net/mdr/wh1000xm5/v1/en/contents/TP1000541014.html> |
+| Beyerdynamic DT 900 Pro X | "Nominal sound pressure level 100 dB SPL (1mW/500Hz)" | 48 ohms | 113.19 | <https://global.beyerdynamic.com/p/dt-900-pro-x> |
+| 64 Audio U12t (m15, m20 and mX module: three curves, one figure) | "Sensitivity 108 dB/mW @ 1 kHz" | 12.6 Ω | 127.00 | <https://www.64audio.com/products/u12t> |
 
 ### Per-entry caveats
+
+**beyerdynamic** states its figure at 500 Hz, not at 1 kHz.
+
+**64 Audio** prints one figure for the U12t and does not say which Apex module it was taken
+with. The three module curves share it. The modules differ mostly in the bass, so the error at
+1 kHz is expected to be small, but it is not measured.
 
 **Sennheiser** labels the line "Sound pressure level (SPL)", not "Sensitivity". It is
 nonetheless dB SPL at 1 V, which is exactly what the contract wants, so nothing is converted.
@@ -72,7 +80,7 @@ SPL estimate is possible however good the sensitivity figure is.
 
 ## Sensitivity: user must enter
 
-Six curves have no citable figure. Each is in `HeadphoneSensitivityLibrary.unlisted` with a
+Seven curves have no citable figure. Each is in `HeadphoneSensitivityLibrary.unlisted` with a
 reason string the UI shows next to the input field.
 
 | Curve name | What the maker publishes | Page checked |
@@ -83,6 +91,7 @@ reason string the UI shows next to the input field.
 | ZMF Verite | nothing: retired; the surviving page has prose about the driver and no specification table | <https://www.zmfheadphones.com/verite/> |
 | Apple AirPods Max | nothing: Apple publishes no sensitivity or impedance for any AirPods model | <https://www.apple.com/airpods-max/specs/> |
 | Apple AirPods Pro 2 | nothing, same as above | <https://support.apple.com/en-us/111851> |
+| Xenns Mangird Tea Pro | "Sensitivity: 104 ± 1dB", "Impedance: 13Ω" — **no reference given**. Checked on the distributor's page on 2026-10-08; no page of the maker itself was found | <https://www.linsoul.com/products/xenns-mangird-tea-pro> |
 
 ### This includes the first user's own headphone
 
@@ -247,6 +256,6 @@ sample, the pads, and how it sits on a particular head.
 
 Re-fetch the URLs above, compare each spec line to the table in this file, and update the
 fetch date here and in every `source` string in `HeadphoneSensitivityLibrary.swift`. If a
-manufacturer has started publishing a referenced figure for one of the six unlisted
+manufacturer has started publishing a referenced figure for one of the seven unlisted
 headphones, move it into `byCurveName` and out of `unlisted` — the test
 `testEveryEmbeddedCurveIsEitherListedOrExplained` enforces that it is in exactly one.
