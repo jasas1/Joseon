@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Joseon — See what you hear</title>
+<meta name="description" content="Joseon is a free, open-source real-time audio analyzer for macOS and Windows. It shows the spectrum, spectrogram, loudness and stereo field of the sound your computer plays, and what your headphones must deliver. It only listens.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#070A12">
+<meta property="og:title" content="Joseon — See what you hear">
+<meta property="og:description" content="Free, open-source real-time audio analyzer for macOS and Windows. It only listens: nothing changes in your audio, nothing is recorded, nothing is sent.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://jasas1.github.io/Joseon/site/icon-512.png">
+<link rel="icon" type="image/png" sizes="64x64" href="site/favicon-64.png">
+<link rel="apple-touch-icon" href="site/icon-256.png">
+<link rel="stylesheet" href="site/style.css">
+</head>
+<body>
+
+<div id="readout" aria-hidden="true"></div>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="site/icon-256.png" alt="" width="28" height="28">Joseon</a>
+    <div class="links">
+      <a href="#shows" class="optional">What it shows</a>
+      <a href="#chain" class="optional">Signal chain</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/jasas1/Joseon" class="gh"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 .2a8 8 0 0 0-2.5 15.6c.4 0 .5-.2.5-.4v-1.5c-2.2.5-2.7-1-2.7-1-.4-.9-.9-1.2-.9-1.2-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.3 1.9.9 2.3.7.1-.5.3-.9.5-1.1-1.8-.2-3.6-.9-3.6-4 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8a7.6 7.6 0 0 1 4 0c1.5-1 2.2-.8 2.2-.8.5 1.1.2 1.9.1 2.1.5.5.8 1.2.8 2.1 0 3.1-1.9 3.8-3.6 4 .3.2.5.7.5 1.4v2.2c0 .2.1.5.6.4A8 8 0 0 0 8 .2z"/></svg>GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+
+<section class="hero">
+  <canvas id="field" aria-hidden="true"></canvas>
+  <div id="veil" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="eyebrow">Joseon · real-time audio analyzer for macOS and Windows</div>
+    <h1>See what you hear.</h1>
+    <p class="lede">Joseon reads the sound your computer plays and shows what is in the music and what your
+      headphones must deliver. <b>It only listens.</b> Nothing changes, nothing is recorded, nothing is sent.</p>
+
+    <div class="downloads">
+      <div class="download" data-download="mac">
+        <a class="btn" href="https://github.com/jasas1/Joseon/releases">
+          <span>Download for macOS</span>
+          <span class="btn-sub">Reading the release list…</span>
+        </a>
+        <div class="meta"></div>
+      </div>
+      <div class="download" data-download="win">
+        <a class="btn" href="https://github.com/jasas1/JoseonPC/releases">
+          <span>Download for Windows</span>
+          <span class="btn-sub">Reading the release list…</span>
+        </a>
+        <div class="meta"></div>
+      </div>
+    </div>
+    <p class="sub"><span>Free</span><span>Open source, GPLv3</span><span>No account</span><span>No analytics</span><span>No driver</span></p>
+
+    <div id="sound" role="group" aria-label="Sound for the background">
+      <button class="chip" id="btn-listen" type="button" disabled>
+        <svg viewBox="0 0 16 16"><path d="M3 6v4h3l4 3V3L6 6H3zm9.5 2a3.5 3.5 0 0 0-2-3.15v6.3A3.5 3.5 0 0 0 12.5 8z"/></svg>
+        <span>Hear the groove</span>
+      </button>
+      <button class="chip" id="btn-mic" type="button">
+        <svg viewBox="0 0 16 16"><path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v4a2.5 2.5 0 0 0 5 0v-4A2.5 2.5 0 0 0 8 1zm-4 6.5h1.3a2.7 2.7 0 0 0 5.4 0H12a4 4 0 0 1-3.35 3.95V13h2v1.3H5.35V13h2v-1.55A4 4 0 0 1 4 7.5z"/></svg>
+        <span>Use my microphone</span>
+      </button>
+      <button class="chip" id="btn-file" type="button">
+        <svg viewBox="0 0 16 16"><path d="M11 1v8.3a2.5 2.5 0 1 1-1.3-2.2V3.6L6 4.5v6.8a2.5 2.5 0 1 1-1.3-2.2V3.4L11 2z"/></svg>
+        <span>Play one of my files</span>
+      </button>
+      <input type="file" id="file-input" accept="audio/*" hidden>
+      <div id="sound-status">The background is a spectrum. Pick what it listens to.</div>
+    </div>
+  </div>
+</section>
+
+<section id="shows">
+  <div class="wrap">
+    <div class="eyebrow">What it shows</div>
+    <h2>Every panel, from the sound your computer plays right now.</h2>
+    <p class="intro">Play music in any app. Joseon shows it. <a href="details.html#shows">All the details →</a></p>
+    <div class="grid">
+      <div class="card"><div class="k">Spectrum</div><h3>Log spectrum</h3><p>Peak hold, long-term average, note readout.</p></div>
+      <div class="card"><div class="k">Spectrogram</div><h3>The last minutes as a picture</h3><p>Click a moment: every panel shows it.</p></div>
+      <div class="card"><div class="k">Loudness</div><h3>LUFS and true peak</h3><p>Range, PLR, PSR, clip count, band energy.</p></div>
+      <div class="card"><div class="k">Stereo field</div><h3>Vectorscope and placement</h3><p>Correlation and balance, per band.</p></div>
+      <div class="card"><div class="k">Headphones</div><h3>What they must deliver</h3><p>Measured response, the spectrum at your ear, stress flags.</p></div>
+      <div class="card"><div class="k">Session</div><h3>Timeline and compare</h3><p>A/B snapshots, now playing, mini spectrum in the menu bar or tray.</p></div>
+    </div>
+
+    <div class="shots">
+      <figure class="shot"><img src="screenshots/spectrum.png" alt="The spectrum panel of Joseon with the headphone overlay" loading="lazy" width="2400" height="800">
+        <figcaption>Spectrum with the headphone overlay.</figcaption></figure>
+      <figure class="shot"><img src="screenshots/spectrogram.png" alt="The spectrogram panel of Joseon" loading="lazy" width="2400" height="800">
+        <figcaption>Spectrogram.</figcaption></figure>
+      <figure class="shot"><img src="screenshots/meters.png" alt="The meters panel of Joseon: loudness, true peak and band energy" loading="lazy" width="2400" height="800">
+        <figcaption>Loudness, true peak and band energy.</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="chain">
+  <div class="wrap">
+    <div class="eyebrow">Where it sits</div>
+    <h2>A read-only copy at the mixer.</h2>
+    <p class="intro">Joseon asks the operating system for a copy of the mix. Your audio path keeps the same bits and
+      the same latency. No driver, no virtual device. <a href="details.html#chain">How the tap works →</a></p>
+
+    <svg class="chain" viewBox="0 0 900 200" role="img" aria-label="Signal chain: a player app sends audio to the operating system mixer, which sends it to the DAC, amplifier and headphones. Joseon receives a read-only copy from the mixer.">
+      <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5 0 10z" fill="rgba(140,170,230,0.7)"/></marker></defs>
+      <g>
+        <rect class="box" x="10" y="40" width="150" height="56" rx="10"/>
+        <text x="85" y="63" text-anchor="middle">Player app</text>
+        <text class="small" x="85" y="82" text-anchor="middle">Qobuz · Spotify · game</text>
+        <path class="wire" d="M160 68 H215" marker-end="url(#arrow)"/>
+        <rect class="box" x="218" y="40" width="190" height="56" rx="10"/>
+        <text x="313" y="63" text-anchor="middle">Operating system mixer</text>
+        <text class="small" x="313" y="82" text-anchor="middle">Core Audio · WASAPI</text>
+        <path class="wire" d="M408 68 H463" marker-end="url(#arrow)"/>
+        <rect class="box" x="466" y="40" width="120" height="56" rx="10"/>
+        <text x="526" y="63" text-anchor="middle">DAC</text>
+        <text class="small" x="526" y="82" text-anchor="middle">interface · dongle</text>
+        <path class="wire" d="M586 68 H641" marker-end="url(#arrow)"/>
+        <rect class="box" x="644" y="40" width="100" height="56" rx="10"/>
+        <text x="694" y="63" text-anchor="middle">Amp</text>
+        <text class="small" x="694" y="82" text-anchor="middle">if you have one</text>
+        <path class="wire" d="M744 68 H799" marker-end="url(#arrow)"/>
+        <rect class="box" x="802" y="40" width="88" height="56" rx="10"/>
+        <text x="846" y="63" text-anchor="middle">Phones</text>
+        <text class="small" x="846" y="82" text-anchor="middle">your ears</text>
+        <path class="copy" d="M313 96 V140" marker-end="url(#arrow)"/>
+        <rect class="tap" x="213" y="143" width="200" height="46" rx="10"/>
+        <text x="313" y="163" text-anchor="middle">Joseon reads a copy</text>
+        <text class="small" x="313" y="181" text-anchor="middle">process tap · loopback</text>
+        <text class="small" x="440" y="170">read-only: nothing is written back</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<section id="privacy">
+  <div class="wrap">
+    <div class="eyebrow">Privacy and security</div>
+    <h2>What Joseon does with your data: nothing.</h2>
+    <div class="statement">
+      <ul class="plain">
+        <li><b>No account, no analytics, no telemetry.</b></li>
+        <li><b>No recording.</b> Audio stays in memory, on your computer.</li>
+        <li><b>One network request:</b> the release list on GitHub, to offer updates. Switch it off in Settings.</li>
+        <li><b>Microphone</b> only when you start a headphone measurement.</li>
+        <li><b>Open source</b> under the GPLv3. Checked against the source on 2026-10-13.</li>
+      </ul>
+      <p class="more"><a href="details.html#privacy">The full statement, how to check each claim, and the signing status →</a></p>
+    </div>
+  </div>
+</section>
+
+<section id="download">
+  <div class="wrap">
+    <div class="eyebrow">Download</div>
+    <h2>Free, open source, one file.</h2>
+    <div class="downloads">
+      <div class="download" data-download="mac">
+        <a class="btn" href="https://github.com/jasas1/Joseon/releases">
+          <span>Download for macOS</span>
+          <span class="btn-sub">Reading the release list…</span>
+        </a>
+        <div class="meta"></div>
+      </div>
+      <div class="download" data-download="win">
+        <a class="btn" href="https://github.com/jasas1/JoseonPC/releases">
+          <span>Download for Windows</span>
+          <span class="btn-sub">Reading the release list…</span>
+        </a>
+        <div class="meta"></div>
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="card">
+        <div class="k">macOS</div>
+        <ol>
+          <li>Open the dmg, drag Joseon to Applications.</li>
+          <li>First start: System Settings → Privacy &amp; Security → Open Anyway.</li>
+          <li>Allow "System Audio Recording". Play music.</li>
+        </ol>
+        <div class="req">macOS 14.4 or later · Apple silicon</div>
+      </div>
+      <div class="card">
+        <div class="k">Windows</div>
+        <ol>
+          <li>Unzip anywhere. Start <code>Joseon.exe</code>.</li>
+          <li>First start: More info → Run anyway.</li>
+          <li>Play music or a game.</li>
+        </ol>
+        <div class="req">Windows 10 or 11, 64-bit · Direct3D 12</div>
+      </div>
+    </div>
+    <p class="intro" style="margin-top:22px"><a href="details.html#install">Installing, updating and building from source →</a></p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><a href="https://github.com/jasas1/Joseon/blob/main/LICENSE">GPLv3</a> ·
+      <a href="https://github.com/jasas1/Joseon">GitHub, macOS</a> · <a href="https://github.com/jasas1/JoseonPC">GitHub, Windows</a> ·
+      <a href="details.html">Details</a> · <a href="https://github.com/jasas1/Joseon/blob/main/NOTICE">Notices and trademarks</a></div>
+    <div>This page loads nothing from third parties and sets no cookies. The groove is made in your browser;
+      your microphone and your files stay on your computer.</div>
+    <div>© <span id="year">2026</span> Caerul LLC</div>
+  </div>
+</footer>
+
+<script type="module" src="site/page.js"></script>
+</body>
+</html>

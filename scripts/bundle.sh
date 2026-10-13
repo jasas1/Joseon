@@ -12,6 +12,12 @@ cp scripts/Info.plist "$APP/Contents/Info.plist"
 [ -f scripts/AppIcon.icns ] && cp scripts/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # A stable signature keeps the audio-capture permission across rebuilds.
 IDENTITY="$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development/ {print $2; exit}')"
+# JOSEON_SIGN_ADHOC=1: sign with no identity at all. For a build that goes to other people before a
+# Developer ID exists: an ad-hoc signature names nobody (a development certificate names its owner).
+if [ "${JOSEON_SIGN_ADHOC:-}" = "1" ]; then
+  echo "JOSEON_SIGN_ADHOC=1: ad-hoc signature, no identity and no team (the updater of this build cannot accept updates)" >&2
+  IDENTITY=""
+fi
 if [ -n "$IDENTITY" ]; then
   codesign --force --sign "$IDENTITY" --entitlements scripts/Joseon.entitlements "$APP"
 else

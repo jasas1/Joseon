@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Joseon — Details</title>
+<meta name="description" content="Joseon in detail: every panel, how the read-only audio tap works on macOS and Windows, the full privacy and security statement with the commands to check each claim, signing status, installing, updating and building from source.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#070A12">
+<link rel="icon" type="image/png" sizes="64x64" href="site/favicon-64.png">
+<link rel="apple-touch-icon" href="site/icon-256.png">
+<link rel="stylesheet" href="site/style.css">
+</head>
+<body class="details">
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="site/icon-256.png" alt="" width="28" height="28">Joseon</a>
+    <div class="links">
+      <a href="#shows" class="optional">Panels</a>
+      <a href="#chain" class="optional">Tap</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/jasas1/Joseon" class="gh"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 .2a8 8 0 0 0-2.5 15.6c.4 0 .5-.2.5-.4v-1.5c-2.2.5-2.7-1-2.7-1-.4-.9-.9-1.2-.9-1.2-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.3 1.9.9 2.3.7.1-.5.3-.9.5-1.1-1.8-.2-3.6-.9-3.6-4 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8a7.6 7.6 0 0 1 4 0c1.5-1 2.2-.8 2.2-.8.5 1.1.2 1.9.1 2.1.5.5.8 1.2.8 2.1 0 3.1-1.9 3.8-3.6 4 .3.2.5.7.5 1.4v2.2c0 .2.1.5.6.4A8 8 0 0 0 8 .2z"/></svg>GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+<section class="page-head">
+  <div class="wrap">
+    <p class="crumb"><a href="index.html">← Joseon</a></p>
+    <h1>Joseon in detail</h1>
+    <p class="lede">The long version of the <a href="index.html">project page</a>: every panel, how the tap works,
+      the full privacy and security statement with the commands to check it, and how to install, update and build.</p>
+  </div>
+</section>
+
+<section id="shows">
+  <div class="wrap">
+    <div class="eyebrow">What it shows</div>
+    <h2>Every panel, from the sound your computer plays right now.</h2>
+    <p class="intro">Start Joseon, play music in any app, and read the music the way a mastering engineer does.
+      Qobuz, Spotify, a browser, a game: whatever your computer plays is what Joseon shows.</p>
+    <div class="grid">
+      <div class="card"><div class="k">Spectrum</div><h3>High-resolution log spectrum</h3>
+        <p>Multi-resolution FFT, peak hold, long-term average, left and right, and a peak readout with the note name
+          and the cents off pitch.</p></div>
+      <div class="card"><div class="k">Spectrogram</div><h3>Scrolling spectrogram</h3>
+        <p>The last minutes of the music as a picture. Linked cursor: click a moment and every panel shows that moment.</p></div>
+      <div class="card"><div class="k">Loudness</div><h3>LUFS, true peak, dynamics</h3>
+        <p>Momentary, short-term and integrated loudness, loudness range, true peak, PLR and PSR, clip count, and
+          band energy from sub to air.</p></div>
+      <div class="card"><div class="k">Stereo field</div><h3>Vectorscope and placement</h3>
+        <p>Vectorscope, phase correlation, balance and correlation per band, and where each frequency sits between
+          left and right.</p></div>
+      <div class="card"><div class="k">Headphones</div><h3>What your headphones must deliver</h3>
+        <p>Measured responses from AutoEq, the predicted spectrum at your ear, and stress flags where this music asks
+          a lot of this headphone. Import your own curve.</p></div>
+      <div class="card"><div class="k">Session</div><h3>Timeline, compare, mini spectrum</h3>
+        <p>A timeline of the session, snapshots to compare tracks side by side, now playing, and a live mini spectrum
+          in the menu bar or the tray. Level at the ear and a headphone measurement with a microphone: macOS now,
+          Windows next.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="chain">
+  <div class="wrap">
+    <div class="eyebrow">Where it sits</div>
+    <h2>A read-only copy at the mixer. Your audio path stays as it was.</h2>
+    <p class="intro">Joseon does not sit between your player and your DAC. It asks the operating system for a copy of
+      the mix it is about to play. The copy goes to Joseon. The original goes where it always went, with the same
+      bits, the same latency, and no extra driver or virtual device.</p>
+    <div class="grid">
+      <div class="card"><div class="k">macOS</div><h3>Core Audio process tap</h3>
+        <p>The tap API of macOS 14.4 and later. Joseon creates it with <code>muteBehavior = .unmuted</code>: the Mac
+          keeps playing exactly as before, and Joseon receives the same samples. No kernel extension, no audio
+          driver, no "Joseon" output device in your sound settings.</p></div>
+      <div class="card"><div class="k">Windows</div><h3>WASAPI loopback</h3>
+        <p>The loopback mode of the Windows audio stack, in shared mode: a copy of the mix of the default output
+          device. Nothing is installed; one <code>Joseon.exe</code> in a folder. Players in exclusive mode (ASIO,
+          WASAPI exclusive) bypass the mixer, so there is nothing to copy; set them to shared mode.</p></div>
+    </div>
+    <p class="dim" style="margin-top:18px">Joseon makes sound only when you ask it to: a calibration tone or a
+      measurement sweep, after you click "start" in those windows (macOS).</p>
+  </div>
+</section>
+
+<section id="privacy">
+  <div class="wrap">
+    <div class="eyebrow">Privacy and security</div>
+    <h2>What Joseon does with your data: nothing.</h2>
+
+    <div class="statement">
+      <h3>Transparency statement</h3>
+      <p class="big">Joseon collects no information about you, your computer, or your music. It does not alter your
+        audio stream. It exists so you can see what you hear and understand your signal chain.</p>
+      <ul>
+        <li><b>No accounts, no sign-in, no license keys.</b> Download it and start it.</li>
+        <li><b>No analytics, no telemetry, no crash reports, no advertising.</b> There is no third-party SDK in the app.
+          The macOS app has zero external dependencies: Apple frameworks only. The Windows app lists every crate it
+          uses in its public <code>Cargo.lock</code>.</li>
+        <li><b>No recording.</b> Audio lives in a ring buffer in memory for analysis and is overwritten within
+          seconds. Nothing is written to disk and nothing leaves the computer.</li>
+        <li><b>One kind of network request, and you can switch it off.</b> Joseon asks GitHub for the list of
+          releases, so it can offer an update: once after the start and once a day, and when you choose "Check for
+          Updates…". Nothing is sent but that request. The setting "Check for updates automatically" turns the
+          automatic check off. An update is accepted only when its SHA-256 matches the release, and on macOS only
+          when its code signature is valid, names the bundle <code>app.joseon.Joseon</code>, and comes from the same
+          signing team as the app that runs.</li>
+        <li><b>Microphone only when you start a measurement.</b> On macOS, the headphone measurement window uses a
+          measurement microphone after you click start, and the system asks you first. The recording stays in memory.
+          Nothing else in Joseon opens an input.</li>
+        <li><b>What it writes to disk:</b> its settings, and the headphone curves you import or measure
+          (macOS: <code>~/Library/Application Support/Joseon/Curves</code>). On Windows also a small log file for problem
+          reports, <code>%APPDATA%\Joseon\joseon.log</code>.</li>
+      </ul>
+      <p class="signed">Checked against the public source on 2026-10-13: Joseon (macOS) at commit 9c83a44, JoseonPC
+        (Windows) at v0.0.9, commit 86f605a. This is a self-review by the project, not an independent audit.
+        Independent review is welcome: the source is public and the checks below take minutes.</p>
+    </div>
+
+    <h3 id="verify">Check it yourself</h3>
+    <table class="claims">
+      <thead><tr><th>Claim</th><th>Where it is in the source</th><th>How to confirm it on your machine</th></tr></thead>
+      <tbody>
+        <tr><td>Read-only tap, audio path untouched</td>
+          <td>macOS: <code>Sources/JoseonCapture/SystemAudioTap.swift</code>, the tap is made with
+            <code>muteBehavior = .unmuted</code>. Windows: <code>crates/joseon-capture/src/wasapi.rs</code>, loopback in shared mode.</td>
+          <td>Open your sound settings while Joseon runs: no new output device, no new input device. Audio MIDI Setup on
+            macOS shows nothing of Joseon.</td></tr>
+        <tr><td>Only one network address</td>
+          <td>macOS: <code>Sources/JoseonApp/Updater.swift</code>, the only use of <code>URLSession</code> in the app.
+            Windows: <code>crates/joseon-app/src/update.rs</code>; the app has no HTTP library of its own and calls the
+            <code>curl</code> that Windows ships.</td>
+          <td>Watch the connections with Little Snitch or LuLu (macOS) or Resource Monitor (Windows): one connection to
+            <code>api.github.com</code> a few seconds after the start, then none. Turn the setting off and there is none at all.</td></tr>
+        <tr><td>No third-party code</td>
+          <td>macOS: <code>Package.swift</code> has no <code>.package(</code> dependency. Windows: <code>Cargo.lock</code>
+            is the complete list.</td>
+          <td><code>grep -c "\.package(" Package.swift</code> prints 0. <code>cargo tree -p joseon-app</code> lists every crate.</td></tr>
+        <tr><td>Nothing recorded, nothing uploaded</td>
+          <td>No code path writes audio to a file. The only file writes are the settings and the small CSV of a curve you
+            import or measure.</td>
+          <td>Run Joseon for an hour and look at <code>~/Library</code> or <code>%APPDATA%\Joseon</code>: settings and, on
+            Windows, a log of a few lines.</td></tr>
+        <tr><td>Least permissions</td>
+          <td>macOS entitlements: <code>scripts/Joseon.entitlements</code> holds one key,
+            <code>com.apple.security.device.audio-input</code>. macOS asks you for "System Audio Recording" the first time; that
+            is the name macOS gives the tap, and it is what the tap needs.</td>
+          <td><code>codesign -d --entitlements - /Applications/Joseon.app</code> shows that one key. System Settings →
+            Privacy &amp; Security lists Joseon under Screen &amp; System Audio Recording, and under Microphone only after a
+            measurement.</td></tr>
+        <tr><td>The build is the source</td>
+          <td>Windows builds run on GitHub's own runners from a tag, in the open:
+            <code>.github/workflows/release.yml</code>. Every release lists the SHA-256 of its files.</td>
+          <td>Compare <code>Get-FileHash Joseon-v…-windows-x64.zip</code> (Windows) or <code>shasum -a 256</code> (macOS)
+            with the digest on the release page.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="signing">Signing status</h3>
+    <div class="callout">
+      <p><b>macOS:</b> the current build carries no Developer ID signature, so macOS warns at the first start and
+        asks you to allow it in System Settings → Privacy &amp; Security ("Open Anyway"). This build does not update
+        itself; new versions come from the project page. The SHA-256 of each file is on the release page.</p>
+      <p><b>Windows:</b> the test builds are not code-signed. SmartScreen shows "Windows protected your PC" at the
+        first start: click "More info", then "Run anyway". Check the SHA-256 against the release page if you want to be
+        sure the file is the one GitHub built.</p>
+    </div>
+
+    <p>Found a problem? Use GitHub's private vulnerability reporting on the repository
+      (<a href="https://github.com/jasas1/Joseon/security">Security → Report a vulnerability</a>). The project's
+      <a href="https://github.com/jasas1/Joseon/blob/main/SECURITY.md">SECURITY.md</a> has the same statement in short.</p>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <div class="eyebrow">Install, update, build</div>
+    <h2>Free, open source, one file.</h2>
+    <div class="steps">
+      <div class="card">
+        <div class="k">macOS</div>
+        <h3>Install</h3>
+        <ol>
+          <li>Open the dmg and drag <code>Joseon</code> to Applications. Start it.</li>
+          <li>macOS says it cannot verify the app. Open System Settings → Privacy &amp; Security, scroll down, and click
+            "Open Anyway". This happens once.</li>
+          <li>macOS asks for "System Audio Recording". Allow it: that is the tap.</li>
+          <li>Play music anywhere. The panels move.</li>
+        </ol>
+        <h3 style="margin-top:16px">Build it from source</h3>
+<pre><code>git clone https://github.com/jasas1/Joseon.git &amp;&amp; cd Joseon
+scripts/bundle.sh --install</code></pre>
+        <div class="req">macOS 14.4 or later on Apple silicon · Xcode command line tools to build</div>
+      </div>
+      <div class="card">
+        <div class="k">Windows</div>
+        <h3>Install</h3>
+        <ol>
+          <li>Unzip the folder anywhere. Nothing is installed.</li>
+          <li>Play music or a game, then start <code>Joseon.exe</code>.</li>
+          <li>At the first start, click "More info", then "Run anyway".</li>
+        </ol>
+        <h3 style="margin-top:16px">Update</h3>
+        <p>"Check for Updates…" in the settings menu fetches a newer version from GitHub, puts it in place and
+          restarts. Joseon also looks once after the start and once a day; "Check for Updates Automatically" turns
+          that off. <code>README.txt</code> in the folder has the keys and what to do when the panels do not move.</p>
+        <h3 style="margin-top:16px">Build it from source</h3>
+<pre><code>git clone https://github.com/jasas1/JoseonPC.git &amp;&amp; cd JoseonPC
+cargo build --release -p joseon-app</code></pre>
+        <div class="req">Windows 10 or 11, 64-bit · a graphics driver with Direct3D 12 · Rust from rustup.rs to build</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><a href="https://github.com/jasas1/Joseon/blob/main/LICENSE">GPLv3</a> ·
+      <a href="https://github.com/jasas1/Joseon">GitHub, macOS</a> · <a href="https://github.com/jasas1/JoseonPC">GitHub, Windows</a> ·
+      <a href="index.html">Project page</a> · <a href="https://github.com/jasas1/Joseon/blob/main/NOTICE">Notices and trademarks</a></div>
+    <div>Headphone measurements come from <a href="https://github.com/jaakkopasanen/AutoEq">AutoEq</a> (MIT). Brand
+      names are trademarks of their owners. This page loads nothing from third parties and sets no cookies.</div>
+    <div>© 2026 Caerul LLC</div>
+  </div>
+</footer>
+
+</body>
+</html>
