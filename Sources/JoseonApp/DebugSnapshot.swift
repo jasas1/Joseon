@@ -72,7 +72,7 @@ enum DebugSnapshot {
             if let v = panel as? SpectrumView { settings.spectrum = v.options; settings.spectrumAutoRange = v.autoRange; settings.showStressBands = v.showStressBands }
             if let v = panel as? SpectrumView { settings.comparison = v.comparison; settings.comparisonLevelMatch = v.comparisonLevelMatch; settings.comparisonMode = v.comparisonMode; settings.liveTiltDBPerOctave = v.liveTiltDBPerOctave }
             if let v = panel as? MetersView { settings.comparison = v.comparison; settings.comparisonLevelMatch = v.comparisonLevelMatch; settings.liveTiltDBPerOctave = v.liveTiltDBPerOctave }
-            if let v = panel as? SpectrogramView { settings.historySeconds = v.historySeconds }
+            if let v = panel as? SpectrogramView { settings.historySeconds = v.historySeconds; settings.spectrogramMode = v.mode }
             if let v = panel as? VectorscopeView { settings.vectorscopeMode = v.mode }
             if let v = panel as? MetersView { settings.targetLUFS = v.targetLUFS }
             if let v = panel as? JoseonRender.TimelineView {

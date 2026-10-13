@@ -30,6 +30,15 @@ final class RenderContext {
     let panPoints: MTLRenderPipelineState
     let panComposite: MTLRenderPipelineState
     let overlay: MTLRenderPipelineState
+    let waterfallSample: MTLRenderPipelineState
+    let waterfallBars: MTLRenderPipelineState
+    let waterfallFloor: MTLRenderPipelineState
+    let texturedRect: MTLRenderPipelineState
+    /// Depth test for the waterfall bars: nearer wins, depth written.
+    let depthLess: MTLDepthStencilState
+    static let waterfallSamples = 4
+    static let waterfallDepthFormat: MTLPixelFormat = .depth32Float
+    static let fieldFormat: MTLPixelFormat = .r16Unorm
 
     /// Bound when a shader declares a LUT but the draw does not use one.
     lazy var whiteLUT: MTLTexture? = makeLUT([SIMD3<Float>(1, 1, 1), SIMD3<Float>(1, 1, 1)])
@@ -44,11 +53,14 @@ final class RenderContext {
             let lib = library
 
             enum Blend { case over, add, none, multiplyByBlendColor }
-            func pipeline(_ v: String, _ f: String, _ blend: Blend, format: MTLPixelFormat) throws -> MTLRenderPipelineState {
+            func pipeline(_ v: String, _ f: String, _ blend: Blend, format: MTLPixelFormat, samples: Int = 1,
+                          depth: MTLPixelFormat = .invalid) throws -> MTLRenderPipelineState {
                 let d = MTLRenderPipelineDescriptor()
                 d.label = "\(v)+\(f)"
                 d.vertexFunction = lib.makeFunction(name: v)
                 d.fragmentFunction = lib.makeFunction(name: f)
+                d.rasterSampleCount = samples
+                d.depthAttachmentPixelFormat = depth
                 let a = d.colorAttachments[0]!
                 a.pixelFormat = format
                 switch blend {
@@ -86,6 +98,17 @@ final class RenderContext {
             panPoints = try pipeline("pan_point_vertex", "pan_point_fragment", .add, format: Self.panAccumFormat)
             panComposite = try pipeline("rect_vertex", "pan_composite_fragment", .add, format: t)
             overlay = try pipeline("overlay_vertex", "overlay_fragment", .over, format: t)
+            waterfallSample = try pipeline("fullscreen_vertex", "waterfall_sample_fragment", .none, format: Self.fieldFormat)
+            waterfallBars = try pipeline("waterfall_vertex", "waterfall_fragment", .none, format: t, samples: Self.waterfallSamples,
+                                         depth: Self.waterfallDepthFormat)
+            waterfallFloor = try pipeline("waterfall_floor_vertex", "waterfall_floor_fragment", .none, format: t, samples: Self.waterfallSamples,
+                                          depth: Self.waterfallDepthFormat)
+            texturedRect = try pipeline("rect_vertex", "textured_fragment", .none, format: t)
+            let ds = MTLDepthStencilDescriptor()
+            ds.depthCompareFunction = .less
+            ds.isDepthWriteEnabled = true
+            guard let state = device.makeDepthStencilState(descriptor: ds) else { throw RenderContextError.depthState }
+            depthLess = state
         } catch {
             NSLog("Joseon render: shader build failed: \(error)")
             return nil
@@ -110,6 +133,8 @@ final class RenderContext {
         return tex
     }
 }
+
+enum RenderContextError: Error { case depthState }
 
 // MARK: - GPU structs (layout matches Shaders.swift)
 
@@ -153,6 +178,33 @@ struct SpectrogramUniforms {
     var topV: Float
     var pad2: Float = 0
     var pad0: Float = 0, pad1: Float = 0
+}
+
+struct WaterfallSampleUniforms {
+    var head: Float
+    var columns: Float
+    var rows: Float
+    var bins: Float
+    var depth: Float
+    var columnsPerRow: Float
+    var pad0: Float = 0, pad1: Float = 0
+}
+
+struct WaterfallUniforms {
+    var viewProj: simd_float4x4
+    var fog: SIMD4<Float>
+    var floorV: Float
+    var topV: Float
+    var bins: Float
+    var depth: Float
+    var height: Float
+    var depthStep: Float
+    var hoverBin: Float
+    var hoverRow: Float
+    var hueLo: Float
+    var hueHi: Float
+    var fogStart: Float
+    var contrast: Float
 }
 
 struct ScopeUniforms {

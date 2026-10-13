@@ -20,6 +20,8 @@ public enum OffscreenRenderer {
         public var spectrumAutoRange = true
         /// `VectorscopeView.mode`.
         public var vectorscopeMode = VectorscopeMode.lissajous
+        /// `SpectrogramView.mode`.
+        public var spectrogramMode = SpectrogramMode.flat
         /// `SpectrumView.showStressBands`.
         public var showStressBands = true
         /// `MetersView.targetLUFS`.
@@ -157,7 +159,7 @@ public enum OffscreenRenderer {
                 s.targetLUFS = settings.targetLUFS; s.doseStandard = settings.doseStandard
                 s.liveTiltDBPerOctave = settings.liveTiltDBPerOctave; s.comparisonLevelMatch = settings.comparisonLevelMatch; s.comparison = settings.comparison
             }
-            if let s = renderer as? SpectrogramRenderer { s.historySeconds = settings.historySeconds }
+            if let s = renderer as? SpectrogramRenderer { s.historySeconds = settings.historySeconds; s.mode = settings.spectrogramMode }
             if let s = renderer as? TimelineRenderer {
                 s.windowSeconds = settings.timelineWindowSeconds; s.targetLUFS = settings.targetLUFS; s.showBands = settings.timelineShowBands; s.showLevelAtEar = settings.timelineShowLevelAtEar
                 if let tz = settings.timelineTimeZone { s.timeZone = tz }

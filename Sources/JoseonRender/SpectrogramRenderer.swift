@@ -10,6 +10,15 @@ import JoseonCore
 /// automatic top re-colors the whole history at once and the picture stays consistent.
 final class SpectrogramRenderer: PanelRenderer {
     var historySeconds: Double = 20 { didSet { if historySeconds != oldValue { resetHistory() } } }
+    /// The flat picture or the 3-D field (see `SpectrogramRenderer+Waterfall.swift`). A switch keeps the history.
+    var mode = SpectrogramMode.flat {
+        didSet {
+            guard mode != oldValue else { return }
+            needsDisplay = true
+            if size.width > 1 { layoutChanged() }
+        }
+    }
+    let waterfall = WaterfallState()
     /// At or under this level a cell is background: no navy haze over silence or the noise floor.
     var floorDB: Float = -75
     /// Exponent of the color map position. 1 = the map is linear in dB: a noise floor at -65 dB is a dark navy, and a tone
@@ -22,12 +31,12 @@ final class SpectrogramRenderer: PanelRenderer {
     static let rows = 1024
     private static let maxPending = 16
 
-    private let axis = LogAxis(minHz: 20, maxHz: 20_000)
+    let axis = LogAxis(minHz: 20, maxHz: 20_000)
     private var ring: MTLTexture?
     private var heatLUT: MTLTexture?
     private var head = 0                       // next column to write on the GPU
     private var needsClear = true
-    private var plot = CGRect.zero
+    private(set) var plot = CGRect.zero
     private var legend = CGRect.zero
 
     // Automatic top of the color scale.
@@ -83,12 +92,13 @@ final class SpectrogramRenderer: PanelRenderer {
     override var kind: PanelKind { .spectrogram }
     override var makesPointerCursors: Bool { true }
     override var needsPrePassPerFrame: Bool { true }
-    /// The history scrolls with time, also while the source repeats one frame, until nothing visible is left.
-    override var isAnimating: Bool { pendingCount > 0 }
+    /// The history scrolls with time, also while the source repeats one frame, until nothing visible is left. The
+    /// waterfall's camera moves on its own.
+    override var isAnimating: Bool { pendingCount > 0 || waterfallAnimating }
 
-    override func paletteChanged() { heatLUT = ctx.makeLUT(palette.heatLUT()) }
+    override func paletteChanged() { heatLUT = ctx.makeLUT(palette.heatLUT()); waterfallPaletteChanged() }
 
-    private var compact: Bool { size.width < 380 || size.height < 170 }
+    var compact: Bool { size.width < 380 || size.height < 170 }
 
     override func layoutChanged() {
         let left: CGFloat = compact ? 32 : 44
@@ -99,11 +109,17 @@ final class SpectrogramRenderer: PanelRenderer {
         let bottom: CGFloat = compact ? 20 : 26
         plot = CGRect(x: left, y: top, width: max(size.width - left - right, 10), height: max(size.height - top - bottom, 10))
         legend = CGRect(x: plot.maxX + 10, y: plot.minY, width: 14, height: plot.height)
+        waterfallLayoutChanged()
     }
 
     override var staticSignature: Int {
         var h = Hasher()
         h.combine(super.staticSignature); h.combine(historySeconds); h.combine(floorDB); h.combine(Int(topDB * 4)); h.combine(Int(latencySeconds * 10))
+        h.combine(mode)
+        if mode == .waterfall {
+            // The labels sit on the field: they move with the camera, re-laid out when it turned a quarter degree.
+            h.combine(Int(waterfall.yaw * 230)); h.combine(Int(waterfall.elevation * 230)); h.combine(waterfall.depth)
+        }
         return h.finalize()
     }
     override var dynamicSignature: Int { 0 }
@@ -117,7 +133,7 @@ final class SpectrogramRenderer: PanelRenderer {
         needsDisplay = true
     }
 
-    @inline(__always) private func ringValue(_ db: Float) -> Float { min(max((db + 120) / 120, 0), 1) }
+    @inline(__always) func ringValue(_ db: Float) -> Float { min(max((db + 120) / 120, 0), 1) }
 
     // MARK: History
 
@@ -214,7 +230,10 @@ final class SpectrogramRenderer: PanelRenderer {
             mirrorHead = (mirrorHead + 1) % Self.columns
             emittedColumns += 1
         }
+        stepCamera(dt: dt)
     }
+
+    override func idle(dt: TimeInterval) { stepCamera(dt: dt) }
 
     // MARK: Layers
 
@@ -335,31 +354,35 @@ final class SpectrogramRenderer: PanelRenderer {
             cb.makeRenderCommandEncoder(descriptor: pass)?.endEncoding()
             needsClear = false
         }
-        guard pendingCount > 0 else { return }
-        let rows = Self.rows
-        guard let staged = arena.allocate(UInt16.self, count: rows * pendingCount),
-              let blit = cb.makeBlitCommandEncoder() else { return }
-        staged.pointer.update(from: pending, count: rows * pendingCount)
-        for i in 0..<pendingCount {
-            blit.copy(from: arena.buffer, sourceOffset: staged.offset + i * rows * 2, sourceBytesPerRow: 2,
-                      sourceBytesPerImage: rows * 2, sourceSize: MTLSize(width: 1, height: rows, depth: 1),
-                      to: ring, destinationSlice: 0, destinationLevel: 0, destinationOrigin: MTLOrigin(x: head, y: 0, z: 0))
-            head = (head + 1) % Self.columns
+        if pendingCount > 0 {
+            let rows = Self.rows
+            if let staged = arena.allocate(UInt16.self, count: rows * pendingCount), let blit = cb.makeBlitCommandEncoder() {
+                staged.pointer.update(from: pending, count: rows * pendingCount)
+                for i in 0..<pendingCount {
+                    blit.copy(from: arena.buffer, sourceOffset: staged.offset + i * rows * 2, sourceBytesPerRow: 2,
+                              sourceBytesPerImage: rows * 2, sourceSize: MTLSize(width: 1, height: rows, depth: 1),
+                              to: ring, destinationSlice: 0, destinationLevel: 0, destinationOrigin: MTLOrigin(x: head, y: 0, z: 0))
+                    head = (head + 1) % Self.columns
+                }
+                blit.endEncoding()
+                pendingCount = 0
+            }
         }
-        blit.endEncoding()
-        pendingCount = 0
+        // The field and its picture serve one frame: only when this encode draws (an offscreen feed of history does not).
+        if mode == .waterfall, isDrawingThisFrame { encodeWaterfallPasses(cb, ring: ring, head: head) }
     }
 
     // MARK: Metal
 
     private func y(forHz hz: Float) -> Float { Float(plot.maxY) - axis.position(hz) * Float(plot.height) }
 
-    private var timeStep: Double {
+    var timeStep: Double {
         for s in [1, 2, 5, 10, 15, 30, 60] as [Double] where historySeconds / s <= (compact ? 4 : 8) { return s }
         return 120
     }
 
     override func draw(_ enc: MTLRenderCommandEncoder, globals g: inout Globals) {
+        if mode == .waterfall { drawWaterfall(enc, globals: &g); return }
         let p = palette
         let px = Float(plot.minX), py = Float(plot.minY), pw = Float(plot.width), ph = Float(plot.height)
         guard let ring, let heatLUT else { return }
@@ -441,6 +464,7 @@ final class SpectrogramRenderer: PanelRenderer {
     // MARK: Text
 
     override func drawStatic(_ o: OverlayContext) {
+        if mode == .waterfall { drawWaterfallStatic(o); return }
         let p = palette
         let small = Fonts.mono(compact ? 10 : 11)
         var lastTop = CGFloat.greatestFiniteMagnitude
@@ -494,6 +518,7 @@ final class SpectrogramRenderer: PanelRenderer {
     var newestSecondsAgo: Double { latencySeconds }
 
     override func cursor(at point: CGPoint) -> PanelCursor? {
+        if mode == .waterfall { return waterfallCursor(at: point) }
         guard plot.contains(point), plot.width > 1 else { return nil }
         let hz = axis.frequency(Float((plot.maxY - point.y) / plot.height))
         let ago = Double((plot.maxX - point.x) / plot.width) * historySeconds + latencySeconds
@@ -501,6 +526,7 @@ final class SpectrogramRenderer: PanelRenderer {
     }
 
     override func isOnCursor(_ point: CGPoint) -> Bool {
+        if mode == .waterfall { return waterfallIsOnCursor(point) }
         guard let c = cursor, plot.contains(point) else { return false }
         if abs(CGFloat(y(forHz: c.frequencyHz)) - point.y) <= 5 { return true }
         if let tx = cursorTimeX(c), abs(tx - point.x) <= 5 { return true }
@@ -576,6 +602,10 @@ final class SpectrogramRenderer: PanelRenderer {
 
     /// Level of the history cell under a point of the plot, nil where nothing was recorded yet.
     func historyLevel(at point: CGPoint) -> Float? {
+        if mode == .waterfall {
+            guard let c = waterfallCursor(at: point), let ago = c.secondsAgo, let back = columnsBack(secondsAgo: ago) else { return nil }
+            return historyLevel(columnsBack: back, hz: c.frequencyHz)
+        }
         guard plot.contains(point), plot.width > 1 else { return nil }
         let ago = Double((plot.maxX - point.x) / plot.width) * Double(Self.columns - 1)
         let back = Int(ago.rounded())
@@ -612,13 +642,18 @@ final class SpectrogramRenderer: PanelRenderer {
     override func hoverLabel() -> (lines: [String], anchor: CGPoint)? {
         if cursorLinked {
             guard showsPointerReadout, let hv = hover, plot.contains(hv), let c = cursor else { return nil }
+            if mode == .waterfall, fieldCell(at: hv) == nil { return nil }
             var first = CursorMath.hz(c.frequencyHz)
             if let n = CursorMath.note(c.frequencyHz) { first += "   \(n)" }
             return ([first, (c.secondsAgo.map { CursorMath.ago($0) + "   " } ?? "") + levelText(c)], hv)
         }
         guard let hv = hover, plot.contains(hv) else { return nil }
-        let hz = axis.frequency(Float((plot.maxY - hv.y) / plot.height))
-        let ago = Double((plot.maxX - hv.x) / plot.width) * historySeconds + latencySeconds
+        var hz = axis.frequency(Float((plot.maxY - hv.y) / plot.height))
+        var ago = Double((plot.maxX - hv.x) / plot.width) * historySeconds + latencySeconds
+        if mode == .waterfall {
+            guard let c = waterfallCursor(at: hv), let t = c.secondsAgo else { return nil }
+            hz = c.frequencyHz; ago = t
+        }
         var first = "cursor  \(Fmt.hz(hz))"
         if let n = Fmt.note(forHz: hz) { first += "   \(n.name) \(Fmt.cents(n.cents))" }
         let time = ago < 0.05 ? "now" : "\(Fmt.minus)\(String(format: "%.1f", ago)) s"
@@ -631,7 +666,7 @@ final class SpectrogramRenderer: PanelRenderer {
         return ([first, second], hv)
     }
 
-    override var accessibilityLabelText: String { "Spectrogram" }
+    override var accessibilityLabelText: String { mode == .waterfall ? "Spectrogram, 3-D waterfall" : "Spectrogram" }
     override var accessibilityValueText: String {
         guard let f = frame, !f.isSilent, !Fmt.isFloor(f.peak.levelDB) else { return "\(Int(historySeconds)) seconds of history. No signal" }
         return "\(Int(historySeconds)) seconds of history. Strongest now: \(Fmt.hz(f.peak.frequencyHz)) at \(String(format: "%.1f", f.peak.levelDB)) dB"

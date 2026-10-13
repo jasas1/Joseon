@@ -14,6 +14,10 @@ class PanelRenderer {
 
     var theme: Theme { didSet { rebuildPalette() } }
     var highContrast = false { didSet { if highContrast != oldValue { rebuildPalette() } } }
+    /// Reduce Motion: a panel that moves on its own (the waterfall's camera) stands still.
+    var reduceMotion = false { didSet { if reduceMotion != oldValue { needsDisplay = true } } }
+    /// True while `encode` runs with a target: pre-passes that only serve the picture of this frame may skip otherwise.
+    private(set) var isDrawingThisFrame = false
     private(set) var palette: Palette
     private(set) var paletteVersion = 0
 
@@ -267,6 +271,7 @@ class PanelRenderer {
     func encode(commandBuffer cb: MTLCommandBuffer, target: MTLTexture?) {
         arena.beginFrame()
         batch.beginFrame(scale: Float(scale))
+        isDrawingThisFrame = target != nil
         encodePrePass(cb)
         guard let target else { return }
 

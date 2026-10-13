@@ -75,9 +75,10 @@ usage:
   joseon-probe demo --seconds N
   joseon-probe cycle [--count N]
   joseon-probe render --panel spectrum|spectrogram|vectorscope|meters --out FILE.png [--width W --height H] [--seconds N] [--realtime]
-                      [--target LUFS] [--mode scope|placement] [--side] [--headphone "NAME"]
+                      [--target LUFS] [--mode scope|placement|flat|waterfall] [--side] [--headphone "NAME"]
       --target LUFS       loudness target of the meters panel, for example -14
-      --mode              vectorscope panel: scope (default) or placement (stereo placement by frequency)
+      --mode              vectorscope panel: scope (default) or placement (stereo placement by frequency);
+                          spectrogram panel: flat (default) or waterfall (the 3-D field)
       --side              spectrum panel: draw the Side (L−R) trace
       --headphone "NAME"  a curve of the headphone library, against the Harman over-ear 2018 target: the real
                           HeadphoneModel runs on the engine, so the render shows the real overlay and real stress flags
@@ -445,7 +446,9 @@ func runRender(_ args: Arguments) -> Never {
         switch raw {
         case "scope": settings.vectorscopeMode = .lissajous
         case "placement": settings.vectorscopeMode = .panSpectrum
-        default: fail("render: --mode must be scope or placement\n" + usage, code: 1)
+        case "flat": settings.spectrogramMode = .flat
+        case "waterfall": settings.spectrogramMode = .waterfall
+        default: fail("render: --mode must be scope, placement, flat or waterfall\n" + usage, code: 1)
         }
     }
     if args.flags.contains("side") { settings.spectrum.showSide = true }

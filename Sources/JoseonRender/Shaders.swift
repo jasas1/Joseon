@@ -504,6 +504,154 @@ fragment float4 pan_composite_fragment(QuadVary v [[stage_in]],
 }
 
 // ---------------------------------------------------------------------------------------------
+// Waterfall: the spectrogram ring as a field of bars in perspective. Two passes before the main pass:
+// 1. `waterfall_sample_fragment` folds the ring into a small field texture (x = frequency column of the field,
+//    y = time row, 0 = newest): the max of the ring rows a column covers, the mean of the ring columns a row covers.
+// 2. `waterfall_vertex` / `waterfall_fragment` draw one box per cell of that texture, instanced, with depth.
+// The main pass then puts the resolved picture into the plot rect with `textured_fragment`.
+// ---------------------------------------------------------------------------------------------
+
+struct WaterfallSampleUniforms {
+    float head;           // next write column of the ring
+    float columns;        // ring width
+    float rows;           // ring height
+    float bins;           // field columns
+    float depth;          // field rows
+    float columnsPerRow;  // ring columns per field row
+    float pad0; float pad1;
+};
+
+fragment float4 waterfall_sample_fragment(QuadVary v [[stage_in]],
+                                          constant WaterfallSampleUniforms& u [[buffer(3)]],
+                                          texture2d<float> ring [[texture(0)]]) {
+    int cols = int(u.columns);
+    int bin = min(int(v.uv.x * u.bins), int(u.bins) - 1);
+    int age = min(int(v.uv.y * u.depth), int(u.depth) - 1);
+    int r0 = int(floor(float(bin) / u.bins * u.rows));
+    int r1 = max(int(ceil(float(bin + 1) / u.bins * u.rows)) - 1, r0);
+    r1 = min(r1, int(u.rows) - 1);
+    int n = max(int(round(u.columnsPerRow)), 1);
+    int newest = int(floor(u.head - 1.0 - float(age) * u.columnsPerRow));
+    float sum = 0.0;
+    for (int k = 0; k < n; k++) {
+        int c = ((newest - k) % cols + cols) % cols;
+        float m = 0.0;
+        for (int r = r0; r <= r1; r++) { m = max(m, ring.read(uint2(c, r)).r); }
+        sum += m;
+    }
+    return float4(sum / float(n), 0.0, 0.0, 1.0);
+}
+
+struct WaterfallUniforms {
+    float4x4 viewProj;
+    float4 fog;           // rgb = the panel background the far rows fade into
+    float floorV;         // ring value at the floor
+    float topV;           // ring value at the automatic top
+    float bins;
+    float depth;
+    float height;         // world units of a bar at the top
+    float depthStep;      // world units between two time rows
+    float hoverBin;       // lit column, far negative = none
+    float hoverRow;       // lit row, negative = none
+    float hueLo;          // hue LUT position of the lowest frequency
+    float hueHi;          // ... and of the highest
+    float fogStart;       // fraction of the depth where the fog begins
+    float contrast;       // 1 = Increase Contrast: harder edges
+};
+
+// A box without its bottom: five faces, four corners each, counter-clockwise seen from outside.
+constant float3 kWfCorners[20] = {
+    float3(-0.5, 1, 0.5), float3(0.5, 1, 0.5), float3(0.5, 1, -0.5), float3(-0.5, 1, -0.5),     // top
+    float3(-0.5, 0, 0.5), float3(0.5, 0, 0.5), float3(0.5, 1, 0.5), float3(-0.5, 1, 0.5),       // front, +z
+    float3(0.5, 0, -0.5), float3(-0.5, 0, -0.5), float3(-0.5, 1, -0.5), float3(0.5, 1, -0.5),   // back, -z
+    float3(0.5, 0, 0.5), float3(0.5, 0, -0.5), float3(0.5, 1, -0.5), float3(0.5, 1, 0.5),       // right, +x
+    float3(-0.5, 0, -0.5), float3(-0.5, 0, 0.5), float3(-0.5, 1, 0.5), float3(-0.5, 1, -0.5)    // left, -x
+};
+constant float3 kWfNormals[5] = { float3(0, 1, 0), float3(0, 0, 1), float3(0, 0, -1), float3(1, 0, 0), float3(-1, 0, 0) };
+constant uint kWfTriangle[6] = { 0, 1, 2, 0, 2, 3 };
+
+struct WaterfallVary {
+    float4 position [[position]];
+    float3 color;
+    float3 nrm;
+    float  fog;
+    float  top;           // 1 on the top face
+};
+
+vertex WaterfallVary waterfall_vertex(uint vid [[vertex_id]],
+                                      uint iid [[instance_id]],
+                                      constant WaterfallUniforms& u [[buffer(2)]],
+                                      texture2d<float> field [[texture(0)]],
+                                      texture2d<float> hue [[texture(1)]]) {
+    constexpr sampler s(filter::linear, address::clamp_to_edge);
+    uint bins = uint(u.bins);
+    uint bin = iid % bins, age = iid / bins;
+    float v = field.read(uint2(bin, age)).r;
+    float mag = clamp((v - u.floorV) / max(u.topV - u.floorV, 1e-4), 0.0, 1.0);
+    float h = max(mag * u.height, 0.05);
+    uint face = vid / 6u, k = vid % 6u;
+    float3 c = kWfCorners[face * 4u + kWfTriangle[k]];
+    float gapX = 0.14, gapZ = 0.24;
+    float3 p = float3((float(bin) - u.bins * 0.5 + 0.5) + c.x * (1.0 - gapX),
+                      c.y * h,
+                      (-float(age) + c.z * (1.0 - gapZ)) * u.depthStep);
+    WaterfallVary o;
+    o.position = u.viewProj * float4(p, 1.0);
+    float t = mix(u.hueLo, u.hueHi, (float(bin) + 0.5) / u.bins);
+    float3 base = hue.sample(s, float2(t, 0.5), level(0)).rgb;
+    float glow = smoothstep(0.80, 1.0, mag);
+    float3 col = base * (0.20 + 0.95 * mag) + float3(0.30) * glow * glow;
+    float lit = 1.0 - smoothstep(0.5, 2.5, abs(float(bin) - u.hoverBin));
+    float litRow = u.hoverRow < 0.0 ? 0.0 : 1.0 - smoothstep(0.5, 2.0, abs(float(age) - u.hoverRow));
+    col += min(lit + litRow, 1.0) * float3(0.26, 0.30, 0.36) * (0.5 + mag);
+    o.color = col;
+    o.nrm = kWfNormals[face];
+    o.fog = smoothstep(u.fogStart, 1.0, float(age) / max(u.depth - 1.0, 1.0));
+    o.top = face == 0u ? 1.0 : 0.0;
+    return o;
+}
+
+fragment float4 waterfall_fragment(WaterfallVary v [[stage_in]], constant WaterfallUniforms& u [[buffer(2)]]) {
+    float3 n = normalize(v.nrm);
+    float key = max(dot(n, normalize(float3(0.35, 0.9, 0.45))), 0.0);
+    float fill = max(dot(n, normalize(float3(-0.6, 0.3, 0.7))), 0.0);
+    float light = 0.38 + 0.62 * key + 0.18 * fill;
+    // Increase Contrast: the sides go darker, so every bar reads as a block.
+    light = mix(light, v.top > 0.5 ? max(light, 1.0) : light * 0.6, u.contrast);
+    float3 c = mix(v.color * light, u.fog.rgb, v.fog);
+    return float4(c, 1.0);
+}
+
+// The floor under the bars: a plate a little lighter than the background, so a gap between bars is floor, not void.
+struct FloorVary {
+    float4 position [[position]];
+    float  fog;
+    float  u;             // 0 at the left edge, 1 at the right
+};
+
+vertex FloorVary waterfall_floor_vertex(uint vid [[vertex_id]], constant WaterfallUniforms& u [[buffer(2)]]) {
+    float2 c = float2((vid & 1u) ? 1.0 : 0.0, (vid & 2u) ? 1.0 : 0.0);
+    float x = (c.x - 0.5) * (u.bins + 6.0);
+    float z = mix(1.2, -(u.depth + 1.5) * u.depthStep, c.y);
+    FloorVary o;
+    o.position = u.viewProj * float4(x, -0.02, z, 1.0);
+    o.fog = smoothstep(u.fogStart, 1.0, c.y);
+    o.u = c.x;
+    return o;
+}
+
+fragment float4 waterfall_floor_fragment(FloorVary v [[stage_in]], constant WaterfallUniforms& u [[buffer(2)]]) {
+    float3 plate = u.fog.rgb * 1.9 + float3(0.012, 0.016, 0.03);
+    return float4(mix(plate, u.fog.rgb, v.fog), 1.0);
+}
+
+// The resolved field, into the plot rect.
+fragment float4 textured_fragment(QuadVary v [[stage_in]], texture2d<float> tex [[texture(0)]]) {
+    constexpr sampler s(filter::linear, address::clamp_to_edge);
+    return float4(tex.sample(s, v.uv).rgb, 1.0);
+}
+
+// ---------------------------------------------------------------------------------------------
 // Text overlay: the Core Graphics text bitmap lives in a texture with the pixel size of the target.
 // Only the rectangles that hold text are drawn.
 // ---------------------------------------------------------------------------------------------

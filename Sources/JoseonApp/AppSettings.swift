@@ -2,15 +2,18 @@ import Foundation
 import Combine
 import JoseonRender
 
-/// Main window layout presets (⌘1 / ⌘2 / ⌘3).
+/// Main window layout presets (⌘1 / ⌘2 / ⌘3, and ⌘6 for the waterfall: ⌘4 and ⌘5 are the placement and the timeline).
 enum LayoutPreset: String, CaseIterable, Identifiable {
     case essential, spectrum, metering
+    /// The spectrogram card alone, as the 3-D field, over the whole panel area.
+    case waterfall
     var id: String { rawValue }
     var title: String {
         switch self {
         case .essential: return "Essential"
         case .spectrum: return "Spectrum"
         case .metering: return "Metering"
+        case .waterfall: return "Waterfall"
         }
     }
     var keyEquivalent: String {
@@ -18,6 +21,7 @@ enum LayoutPreset: String, CaseIterable, Identifiable {
         case .essential: return "1"
         case .spectrum: return "2"
         case .metering: return "3"
+        case .waterfall: return "6"
         }
     }
 }
@@ -90,6 +94,8 @@ final class AppSettings: ObservableObject {
     @Published var showAverage: Bool { didSet { defaults.set(showAverage, forKey: "showAverage") } }
     @Published var showHeadphoneOverlay: Bool { didSet { defaults.set(showHeadphoneOverlay, forKey: "showHeadphoneOverlay") } }
     @Published var spectrogramHistorySeconds: Int { didSet { defaults.set(spectrogramHistorySeconds, forKey: "spectrogramHistorySeconds") } }
+    /// The spectrogram card shows the 3-D waterfall instead of the flat picture. The "Waterfall" layout forces it on.
+    @Published var spectrogramWaterfall: Bool { didSet { defaults.set(spectrogramWaterfall, forKey: "spectrogramWaterfall") } }
 
     // Session timeline strip
     /// The strip under the panels of the main window (⌘5).
@@ -140,7 +146,7 @@ final class AppSettings: ObservableObject {
         defaults.register(defaults: [
             "displayBins": 1024, "releaseSeconds": 0.25, "peakDecayDBPerSecond": 12.0, "tiltDBPerOctave": 0.0,
             "dbRange": 96, "showLeftRight": true, "showMid": true, "showSide": false, "showPeakHold": true, "spectrumAutoRange": true, "stereoPlacementMode": false, "spectrumShowsPlacement": true, "showAverage": true,
-            "showHeadphoneOverlay": true, "spectrogramHistorySeconds": 20, "layoutPreset": LayoutPreset.essential.rawValue,
+            "showHeadphoneOverlay": true, "spectrogramHistorySeconds": 20, "spectrogramWaterfall": false, "layoutPreset": LayoutPreset.essential.rawValue,
             "miniGraphWidth": 64, "miniGraphColor": MiniGraphColor.template.rawValue, "showDockIcon": true, "demoMode": false, "targetName": "",
             "hasSeenWelcome": false, "mainWindowWasOpen": true, "loudnessTarget": LoudnessTarget.off.rawValue,
             "autoResetAfterSilence": true, "checkUpdatesAutomatically": true,
@@ -164,6 +170,7 @@ final class AppSettings: ObservableObject {
         showAverage = defaults.bool(forKey: "showAverage")
         showHeadphoneOverlay = defaults.bool(forKey: "showHeadphoneOverlay")
         spectrogramHistorySeconds = pick(defaults.integer(forKey: "spectrogramHistorySeconds"), from: Self.historyChoices, fallback: 20)
+        spectrogramWaterfall = defaults.bool(forKey: "spectrogramWaterfall")
         showTimeline = defaults.bool(forKey: "showTimeline")
         timelineWindowSeconds = pick(defaults.integer(forKey: "timelineWindowSeconds"), from: Self.timelineWindowChoices, fallback: 900)
         timelineShowBands = defaults.bool(forKey: "timelineShowBands")

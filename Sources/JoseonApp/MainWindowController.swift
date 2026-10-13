@@ -50,6 +50,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var allCards: [PanelCardView] { [spectrumCard, spectrogramCard, vectorscopeCard, metersCard, placementCard, timelineCard] }
     /// "Scope | Placement" in the title row of the stereo card.
     private let stereoModeControl = NSSegmentedControl(labels: ["Scope", "Placement"], trackingMode: .selectOne, target: nil, action: nil)
+    /// "Flat | Waterfall" in the title row of the spectrogram card.
+    private let spectrogramModeControl = NSSegmentedControl(labels: ["Flat", "Waterfall"], trackingMode: .selectOne, target: nil, action: nil)
     static let scopeTitle = "Vectorscope"
     static let placementTitle = "Stereo placement"
 
@@ -103,6 +105,16 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         stereoModeControl.sizeToFit()
         vectorscopeCard.accessoryView = stereoModeControl
 
+        spectrogramModeControl.controlSize = .small
+        spectrogramModeControl.font = .systemFont(ofSize: 10.5, weight: .medium)
+        spectrogramModeControl.segmentStyle = .rounded
+        spectrogramModeControl.setToolTip("Flat: the scrolling picture, time across, frequency up.", forSegment: 0)
+        spectrogramModeControl.setToolTip("Waterfall: the same history as a field of bars in perspective. ⌘6 shows it over the whole window.", forSegment: 1)
+        spectrogramModeControl.setAccessibilityLabel("Spectrogram view")
+        spectrogramModeControl.setAccessibilityHelp("Flat shows the scrolling picture. Waterfall shows the history as a 3-D field. Command 6 shows the field over the whole window.")
+        spectrogramModeControl.sizeToFit()
+        spectrogramCard.accessoryView = spectrogramModeControl
+
         let window = MainWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -131,6 +143,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.plainKeyHandler = { [weak self] key in self?.handlePlainKey(key) ?? false }
         stereoModeControl.target = self
         stereoModeControl.action = #selector(stereoModeChanged(_:))
+        spectrogramModeControl.target = self
+        spectrogramModeControl.action = #selector(spectrogramModeChanged(_:))
 
         buildContent(actions: actions)
         window.center()
@@ -268,6 +282,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
             panels = PersistentSplitView(key: "metering.main", vertical: true, panes: [metersCard, side], fractions: [0.58, 0.42],
                                          minimums: [420, 340])
             panelsMinimum = 230 + 8 + 170
+        case .waterfall:
+            // The spectrogram card alone, as the field. 200 pt keeps the near row and the frequency labels readable.
+            spectrogramCard.translatesAutoresizingMaskIntoConstraints = false
+            panels = spectrogramCard
+            panelsMinimum = 200
         }
         let tree: NSView
         if withTimeline {
@@ -295,7 +314,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// "Waiting for audio" shows once in the header. In the body, only the largest card of the layout
     /// repeats it, as one quiet plate. The other cards stay plain.
     private var placeholderCard: PanelCardView {
-        settings.layoutPreset == .metering ? metersCard : spectrumCard
+        switch settings.layoutPreset {
+        case .metering: return metersCard
+        case .waterfall: return spectrogramCard
+        case .essential, .spectrum: return spectrumCard
+        }
     }
 
     private func applyPlaceholder() {
@@ -385,6 +408,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         settings.stereoPlacementMode = sender.selectedSegment == 1
     }
 
+    @objc private func spectrogramModeChanged(_ sender: NSSegmentedControl) {
+        settings.spectrogramWaterfall = sender.selectedSegment == 1
+    }
+
     // MARK: Keys
 
     private func handlePlainKey(_ key: String) -> Bool {
@@ -423,6 +450,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
             spectrogramView.historySeconds = history
             spectrogramView.needsDisplay = true
         }
+        // The "Waterfall" layout forces the field; the setting itself stays what it was.
+        let forced = settings.layoutPreset == .waterfall
+        let spectrogramMode: SpectrogramMode = forced || settings.spectrogramWaterfall ? .waterfall : .flat
+        if spectrogramView.mode != spectrogramMode { spectrogramView.mode = spectrogramMode }
+        let modeSegment = spectrogramMode == .waterfall ? 1 : 0
+        if spectrogramModeControl.selectedSegment != modeSegment { spectrogramModeControl.selectedSegment = modeSegment }
+        if spectrogramModeControl.isEnabled == forced { spectrogramModeControl.isEnabled = !forced }
         applyComparison()
     }
 
@@ -531,6 +565,17 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func spectrogramMenu() -> NSMenu {
         let s = settings
         let menu = NSMenu()
+        menu.addItem(header("View"))
+        let forced = s.layoutPreset == .waterfall
+        let flat = ClosureMenuItem(title: "Flat", checked: !forced && !s.spectrogramWaterfall) { s.spectrogramWaterfall = false }
+        let field = ClosureMenuItem(title: "3-D Waterfall", checked: forced || s.spectrogramWaterfall) { s.spectrogramWaterfall = true }
+        if forced { flat.isEnabled = false; field.isEnabled = false }
+        menu.addItem(flat)
+        menu.addItem(field)
+        menu.addItem(ClosureMenuItem(title: "Waterfall Over the Whole Window  (⌘6)", checked: forced) {
+            s.layoutPreset = forced ? .essential : .waterfall
+        })
+        menu.addItem(.separator())
         menu.addItem(header("History"))
         for seconds in AppSettings.historyChoices {
             menu.addItem(ClosureMenuItem(title: "\(seconds) seconds", checked: s.spectrogramHistorySeconds == seconds) { s.spectrogramHistorySeconds = seconds })

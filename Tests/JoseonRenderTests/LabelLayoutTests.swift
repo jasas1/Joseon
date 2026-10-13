@@ -26,6 +26,22 @@ final class LabelLayoutTests: XCTestCase {
         }
     }
 
+    /// The waterfall's labels sit on the field (projected), alone, with a pinned timed cursor, and with a cursor from
+    /// another panel.
+    func testWaterfallLabelsNeverIntersect() throws {
+        try RenderTestSupport.requireMetal()
+        let real = Array(RealFrames.demo(seconds: 4).suffix(120))
+        var field = OffscreenRenderer.Settings()
+        field.spectrogramMode = .waterfall
+        try check(.spectrogram, real, field, "waterfall")
+        var pinned = field
+        pinned.cursor = PanelCursor(frequencyHz: 392, secondsAgo: 1.2, source: .spectrogram, isPinned: true)
+        try check(.spectrogram, real, pinned, "waterfall pinned cursor")
+        var other = field
+        other.cursor = PanelCursor(frequencyHz: 3_100, source: .spectrum)
+        try check(.spectrogram, real, other, "waterfall cursor from the spectrum")
+    }
+
     func testSpectrumLabelsNeverIntersect() throws {
         try RenderTestSupport.requireMetal()
         let real = Array(RealFrames.demo(seconds: 4).suffix(120))

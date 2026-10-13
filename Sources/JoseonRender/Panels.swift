@@ -182,6 +182,7 @@ open class PanelView: NSView, CAMetalDisplayLinkDelegate, CALayerDelegate {
     private func applyAccessibilityDisplayOptions() {
         let ws = NSWorkspace.shared
         reduceMotion = ws.accessibilityDisplayShouldReduceMotion
+        renderer?.reduceMotion = reduceMotion
         renderer?.highContrast = ws.accessibilityDisplayShouldIncreaseContrast
         layer?.backgroundColor = theme.background.cgColor
         applyFrameRate()
@@ -513,10 +514,22 @@ public final class SpectrumView: PanelView {
 }
 
 public final class SpectrogramView: PanelView {
-    /// Seconds of history across the view width.
+    /// Seconds of history across the view width (flat) or into the depth (waterfall).
     public var historySeconds: Double = 20
+    /// The flat picture (default) or the 3-D waterfall. A switch keeps the history.
+    public var mode = SpectrogramMode.flat
+    private var appliedMode = SpectrogramMode.flat
     public init(frameProvider: @escaping FrameProvider) { super.init(kind: .spectrogram, frameProvider: frameProvider) }
-    override func syncOptions() { (renderer as? SpectrogramRenderer)?.historySeconds = max(historySeconds, 1) }
+    override func syncOptions() {
+        guard let r = renderer as? SpectrogramRenderer else { return }
+        r.historySeconds = max(historySeconds, 1)
+        if r.mode != mode { r.mode = mode }
+        if mode != appliedMode {
+            // The flat picture moves at 30 fps; the camera of the waterfall wants the display rate.
+            appliedMode = mode
+            preferredFramesPerSecond = mode == .waterfall ? 60 : 30
+        }
+    }
 }
 
 public final class VectorscopeView: PanelView {
