@@ -519,7 +519,63 @@ public final class SpectrogramView: PanelView {
     /// The flat picture (default) or the 3-D waterfall. A switch keeps the history.
     public var mode = SpectrogramMode.flat
     private var appliedMode = SpectrogramMode.flat
+    /// Waterfall: called after the user turned, zoomed or reset the view.
+    public var onViewChange: (() -> Void)?
+    /// Waterfall: true when the user turned or zoomed the view away from the resting one.
+    public var hasCustomView: Bool { (renderer as? SpectrogramRenderer)?.hasCustomView ?? false }
+    private var dragLast: NSPoint?
+    private var dragMoved = false
     public init(frameProvider: @escaping FrameProvider) { super.init(kind: .spectrogram, frameProvider: frameProvider) }
+
+    /// Waterfall: back to the resting view.
+    public func resetView() {
+        (renderer as? SpectrogramRenderer)?.resetView()
+        onViewChange?()
+    }
+
+    /// Waterfall: a drag orbits the camera (a drag across the whole panel is half a turn; up and down tilt it). A click
+    /// without a drag is the cursor click of every panel. A double click resets the view.
+    public override func mouseDown(with event: NSEvent) {
+        guard mode == .waterfall, renderer != nil else { super.mouseDown(with: event); return }
+        if event.clickCount == 2 { resetView(); dragLast = nil; return }
+        dragLast = event.locationInWindow
+        dragMoved = false
+        if cursorLink != nil { window?.makeFirstResponder(self) }
+    }
+
+    public override func mouseDragged(with event: NSEvent) {
+        guard mode == .waterfall, let last = dragLast, let r = renderer as? SpectrogramRenderer else { super.mouseDragged(with: event); return }
+        let p = event.locationInWindow
+        let dx = Float(p.x - last.x), dy = Float(p.y - last.y)
+        dragLast = p
+        if !dragMoved, abs(dx) + abs(dy) < 2 { return }
+        dragMoved = true
+        let width = Float(max(bounds.width, 1)), height = Float(max(bounds.height, 1))
+        r.orbit(yawBy: -dx / width * .pi, elevationBy: -dy / height * (.pi / 2))
+        onViewChange?()
+    }
+
+    public override func mouseUp(with event: NSEvent) {
+        guard mode == .waterfall, dragLast != nil else { super.mouseUp(with: event); return }
+        dragLast = nil
+        if !dragMoved, cursorLink != nil {
+            handleCursorClick(at: topLeftPoint(convert(event.locationInWindow, from: nil)))
+        }
+    }
+
+    public override func scrollWheel(with event: NSEvent) {
+        guard mode == .waterfall, let r = renderer as? SpectrogramRenderer else { super.scrollWheel(with: event); return }
+        let delta = Float(event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 8)
+        guard delta != 0 else { return }
+        r.zoom(by: exp(delta * 0.004))
+        onViewChange?()
+    }
+
+    public override func magnify(with event: NSEvent) {
+        guard mode == .waterfall, let r = renderer as? SpectrogramRenderer else { super.magnify(with: event); return }
+        r.zoom(by: 1 + Float(event.magnification))
+        onViewChange?()
+    }
     override func syncOptions() {
         guard let r = renderer as? SpectrogramRenderer else { return }
         r.historySeconds = max(historySeconds, 1)

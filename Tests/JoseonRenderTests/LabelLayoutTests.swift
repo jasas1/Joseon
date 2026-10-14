@@ -40,6 +40,13 @@ final class LabelLayoutTests: XCTestCase {
         var other = field
         other.cursor = PanelCursor(frequencyHz: 3_100, source: .spectrum)
         try check(.spectrogram, real, other, "waterfall cursor from the spectrum")
+        // Turned views: from the side, from behind, from almost overhead, from near the floor, and zoomed in.
+        for (yaw, elevation, zoom) in [(Float(1.5), Float(0.5), Float(1)), (Float.pi, Float(0.6), Float(1)), (Float(-0.8), Float(1.4), Float(1)),
+                                       (Float(0.4), Float(0.12), Float(1)), (Float(0.3), Float(0.6), Float(2.4))] {
+            var turned = pinned
+            turned.waterfallYaw = yaw; turned.waterfallElevation = elevation; turned.waterfallZoom = zoom
+            try check(.spectrogram, real, turned, "waterfall turned yaw \(yaw) elevation \(elevation) zoom \(zoom)")
+        }
     }
 
     func testSpectrumLabelsNeverIntersect() throws {

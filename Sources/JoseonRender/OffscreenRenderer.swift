@@ -22,6 +22,11 @@ public enum OffscreenRenderer {
         public var vectorscopeMode = VectorscopeMode.lissajous
         /// `SpectrogramView.mode`.
         public var spectrogramMode = SpectrogramMode.flat
+        /// Waterfall: the camera as the user turned it, yaw and elevation in radians. Nil = the resting view.
+        public var waterfallYaw: Float?
+        public var waterfallElevation: Float?
+        /// Waterfall: the zoom (1 = the fitted view).
+        public var waterfallZoom: Float = 1
         /// `SpectrumView.showStressBands`.
         public var showStressBands = true
         /// `MetersView.targetLUFS`.
@@ -159,7 +164,12 @@ public enum OffscreenRenderer {
                 s.targetLUFS = settings.targetLUFS; s.doseStandard = settings.doseStandard
                 s.liveTiltDBPerOctave = settings.liveTiltDBPerOctave; s.comparisonLevelMatch = settings.comparisonLevelMatch; s.comparison = settings.comparison
             }
-            if let s = renderer as? SpectrogramRenderer { s.historySeconds = settings.historySeconds; s.mode = settings.spectrogramMode }
+            if let s = renderer as? SpectrogramRenderer {
+                s.historySeconds = settings.historySeconds; s.mode = settings.spectrogramMode
+                if settings.waterfallYaw != nil || settings.waterfallZoom != 1 {
+                    s.setView(yaw: settings.waterfallYaw, elevation: settings.waterfallElevation, zoom: settings.waterfallZoom)
+                }
+            }
             if let s = renderer as? TimelineRenderer {
                 s.windowSeconds = settings.timelineWindowSeconds; s.targetLUFS = settings.targetLUFS; s.showBands = settings.timelineShowBands; s.showLevelAtEar = settings.timelineShowLevelAtEar
                 if let tz = settings.timelineTimeZone { s.timeZone = tz }

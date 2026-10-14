@@ -25,12 +25,21 @@ final class WaterfallState {
     var msaaDepth: MTLTexture?
     var pixelSize = (width: 0, height: 0)
     var hueLUT: MTLTexture?
-    /// The camera: a slow sway, and the pointer tilts it a little.
+    /// The camera: a slow sway, and the pointer tilts it a little. A drag orbits it freely (any yaw, over the floor),
+    /// a scroll or a pinch zooms, and a reset goes back to the resting view.
     var yaw: Float = 0
     var elevation: Float = 0.56
     var tilt = SIMD2<Float>(0, 0)
     var tiltTarget = SIMD2<Float>(0, 0)
     var clock: Double = 0
+    /// The view the user turned to. Nil = the resting view with its sway.
+    var userView: (yaw: Float, elevation: Float)?
+    var zoom: Float = 1
+    /// False when the dB scale's numbers would land on other labels (a view from the side): the scale is left out.
+    var scaleShown = true
+    static let restYaw: Float = -14 * .pi / 180
+    static let elevationRange: ClosedRange<Float> = 0.10...1.48
+    static let zoomRange: ClosedRange<Float> = 0.6...2.6
     var viewProj = matrix_identity_float4x4
     var invViewProj = matrix_identity_float4x4
     /// World units between two time rows; the cells are one unit wide.
@@ -46,8 +55,8 @@ final class WaterfallState {
     static let lowElevation: Float = 0.40
     static let swayAmplitude: Float = 3.5 * .pi / 180
     static let swayPeriod: Double = 60
-    static let tiltYaw: Float = 8 * .pi / 180
-    static let tiltElevation: Float = 3 * .pi / 180
+    static let tiltYaw: Float = 12 * .pi / 180
+    static let tiltElevation: Float = 4 * .pi / 180
 }
 
 extension SpectrogramRenderer {
@@ -68,9 +77,10 @@ extension SpectrogramRenderer {
         let k = reduceMotion ? 1 : Float(1 - exp(-dt / 0.15))
         w.tilt += (w.tiltTarget - w.tilt) * k
         if simd_length(w.tilt - w.tiltTarget) < 0.002 { w.tilt = w.tiltTarget }
-        let sway = reduceMotion ? 0 : Float(sin(w.clock * 2 * .pi / WaterfallState.swayPeriod)) * WaterfallState.swayAmplitude
-        w.yaw = sway + w.tilt.x * WaterfallState.tiltYaw
-        w.elevation = w.baseElevation - w.tilt.y * WaterfallState.tiltElevation
+        let sway = reduceMotion || w.userView != nil ? 0 : Float(sin(w.clock * 2 * .pi / WaterfallState.swayPeriod)) * WaterfallState.swayAmplitude
+        let base = w.userView ?? (yaw: WaterfallState.restYaw, elevation: w.baseElevation)
+        w.yaw = base.yaw + sway + w.tilt.x * WaterfallState.tiltYaw
+        w.elevation = min(max(base.elevation - w.tilt.y * WaterfallState.tiltElevation, 0.06), 1.52)
         updateCamera()
         if before != (w.yaw, w.elevation) { needsDisplay = true }
     }
@@ -78,11 +88,54 @@ extension SpectrogramRenderer {
     /// True while the camera moves on its own or still eases toward the pointer.
     var waterfallAnimating: Bool {
         guard mode == .waterfall else { return false }
-        return !reduceMotion || waterfall.tilt != waterfall.tiltTarget
+        return (!reduceMotion && waterfall.userView == nil) || waterfall.tilt != waterfall.tiltTarget
+    }
+
+    /// Turns the view by the angles (radians). The elevation stays over the floor; the yaw is free.
+    func orbit(yawBy dYaw: Float, elevationBy dElevation: Float) {
+        guard mode == .waterfall else { return }
+        let w = waterfall
+        let current = w.userView ?? (yaw: w.yaw - w.tilt.x * WaterfallState.tiltYaw, elevation: w.elevation + w.tilt.y * WaterfallState.tiltElevation)
+        var yaw = (current.yaw + dYaw).truncatingRemainder(dividingBy: 2 * .pi)
+        if yaw > .pi { yaw -= 2 * .pi } else if yaw < -.pi { yaw += 2 * .pi }
+        let elevation = min(max(current.elevation + dElevation, WaterfallState.elevationRange.lowerBound), WaterfallState.elevationRange.upperBound)
+        w.userView = (yaw, elevation)
+        stepCamera(dt: 0)
+        needsDisplay = true
+    }
+
+    /// Multiplies the zoom (2 = twice as close).
+    func zoom(by factor: Float) {
+        guard mode == .waterfall, factor.isFinite, factor > 0 else { return }
+        let w = waterfall
+        w.zoom = min(max(w.zoom * factor, WaterfallState.zoomRange.lowerBound), WaterfallState.zoomRange.upperBound)
+        stepCamera(dt: 0)
+        needsDisplay = true
+    }
+
+    /// Back to the resting view, with its sway.
+    func resetView() {
+        let w = waterfall
+        w.userView = nil
+        w.zoom = 1
+        stepCamera(dt: 0)
+        needsDisplay = true
+    }
+
+    /// True when the user turned or zoomed the view.
+    var hasCustomView: Bool { waterfall.userView != nil || waterfall.zoom != 1 }
+
+    /// Sets the view outright (offscreen renders and tests). Nil = the resting view.
+    func setView(yaw: Float?, elevation: Float?, zoom: Float = 1) {
+        let w = waterfall
+        if let yaw, let elevation { w.userView = (yaw, elevation) } else { w.userView = nil }
+        w.zoom = min(max(zoom, WaterfallState.zoomRange.lowerBound), WaterfallState.zoomRange.upperBound)
+        stepCamera(dt: 0)
     }
 
     func updateCamera() {
         let w = waterfall
+        w.distance = fittedDistance(yaw: w.yaw, elevation: w.elevation) / w.zoom
         w.viewProj = cameraMatrix(yaw: w.yaw, elevation: w.elevation, distance: w.distance)
         w.invViewProj = w.viewProj.inverse
     }
@@ -98,35 +151,36 @@ extension SpectrogramRenderer {
         return proj * Self.lookAt(eye: eye, at: at, up: SIMD3(0, 1, 0))
     }
 
-    /// Finds the nearest camera distance at which the near row, its labels and a bar of full height fit the plot, with
-    /// room for the tilt. A card too narrow for the whole width shows the middle of the field (the distance is capped).
-    func fitCamera() {
+    /// The nearest camera distance at which the field fits the plot from this angle: the near row with its labels and a
+    /// bar of full height stay inside; the far corners may leave the top a little (the fog takes them anyway). A card
+    /// too narrow for the whole width shows the middle of the field (the distance is capped).
+    func fittedDistance(yaw: Float, elevation: Float) -> Float {
         let w = waterfall
-        let bins = Float(w.bins)
-        let points: [SIMD3<Float>] = [SIMD3(-bins * 0.5 - 4, 0, 2.2), SIMD3(bins * 0.5 + 4, 0, 2.2),
-                                     SIMD3(-bins * 0.5 - 4, 0, 1.2), SIMD3(bins * 0.5 + 4, 0, 1.2),
-                                     SIMD3(0, w.height, 0), SIMD3(bins * 0.5 + 3, w.height, 0.3)]
+        let bins = Float(w.bins), far = -(Float(w.depth) + 1) * w.depthStep
+        let near: [SIMD3<Float>] = [SIMD3(-bins * 0.5 - 4, 0, 2.2), SIMD3(bins * 0.5 + 4, 0, 2.2),
+                                   SIMD3(0, w.height, 0), SIMD3(bins * 0.5 + 3, w.height, 0.3), SIMD3(-bins * 0.5 - 3, w.height, 0.3)]
+        let farCorners: [SIMD3<Float>] = [SIMD3(-bins * 0.5 - 2, 0, far), SIMD3(bins * 0.5 + 2, 0, far)]
         // The row of frequency labels under the near edge needs 26 pt of the plot, whatever its height.
         let bottom = -1 + Float(2 * 26 / max(plot.height, 60))
+        let checks = near.map { ($0, Float(0.93), Float(0.97)) } + farCorners.map { ($0, Float(1.0), Float(1.12)) }
         func fits(_ d: Float) -> Bool {
-            let m = cameraMatrix(yaw: 0, elevation: w.baseElevation, distance: d)
-            for p in points {
+            let m = cameraMatrix(yaw: yaw, elevation: elevation, distance: d)
+            for (p, xBound, yTop) in checks {
                 let c = m * SIMD4(p, 1)
                 guard c.w > 1e-4 else { return false }
                 let nx = c.x / c.w, ny = c.y / c.w
-                // 0.93: room for the camera's sway.
-                if abs(nx) > 0.93 || ny < bottom || ny > 0.97 { return false }
+                if abs(nx) > xBound || ny < bottom || ny > yTop { return false }
             }
             return true
         }
         var lo = bins * 0.3, hi = bins * 3
-        if fits(lo) { w.distance = lo; return }
-        if !fits(hi) { w.distance = hi; return }
-        for _ in 0..<24 {
+        if fits(lo) { return lo }
+        if !fits(hi) { return hi }
+        for _ in 0..<22 {
             let mid = (lo + hi) / 2
             if fits(mid) { hi = mid } else { lo = mid }
         }
-        w.distance = min(hi, bins * 1.6)
+        return min(hi, bins * 1.8)
     }
 
     /// Metal clip space: z from 0 (near) to 1 (far).
@@ -189,7 +243,6 @@ extension SpectrogramRenderer {
         w.height = 20 * min(max(plotHeight / 420, 0.5), 1)
         let k = min(max((aspect - 0.2) / 0.2, 0), 1)
         w.baseElevation = WaterfallState.lowElevation + (WaterfallState.tallElevation - WaterfallState.lowElevation) * k
-        w.elevation = w.baseElevation - w.tilt.y * WaterfallState.tiltElevation
         let pw = max(Int((plot.width * scale).rounded()), 1), ph = max(Int((plot.height * scale).rounded()), 1)
         if w.color == nil || w.pixelSize.width != pw || w.pixelSize.height != ph {
             w.pixelSize = (pw, ph)
@@ -219,8 +272,7 @@ extension SpectrogramRenderer {
             w.field?.label = "Joseon waterfall field"
         }
         if w.hueLUT == nil { waterfallPaletteChanged() }
-        fitCamera()
-        updateCamera()
+        stepCamera(dt: 0)
     }
 
     func waterfallPaletteChanged() {
@@ -317,7 +369,7 @@ extension SpectrogramRenderer {
             enc.setFragmentTexture(color, index: 0)
             enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         }
-        if let scale = dbScaleEnds {
+        if let scale = dbScaleEnds, waterfall.scaleShown {
             let c = p.textFaint
             batch.line(Float(scale.bottom.x), Float(scale.bottom.y), Float(scale.top.x), Float(scale.top.y), width: 1, color: c)
             batch.hline(Float(scale.top.x) - 3, Float(scale.top.x) + 3, Float(scale.top.y), color: c)
@@ -347,16 +399,16 @@ extension SpectrogramRenderer {
         let inside = plot.insetBy(dx: 1, dy: 1)
         // Frequency decades along the near edge, in the order of the axis; a label that would touch the one before gives way.
         var placed: [CGRect] = []
-        var lastRight = -CGFloat.greatestFiniteMagnitude
         for f in LogAxis.labeled where f >= axis.minHz && f <= axis.maxHz {
             guard let pt = project(SIMD3(fieldX(hz: f), 0, 1.6)) else { continue }
             let text = Fmt.axisHz(f)
             let width = o.measure(text, font: small)
             let left = pt.x - width / 2, y = pt.y + 3
-            guard left > lastRight + 6, left >= inside.minX, left + width <= inside.maxX, y >= inside.minY, y + 12 <= inside.maxY else { continue }
+            guard left >= inside.minX, left + width <= inside.maxX, y >= inside.minY, y + 12 <= inside.maxY else { continue }
+            let box = o.textBounds(text, x: pt.x, y: y, font: small, h: .center, v: .top).insetBy(dx: -3, dy: -2)
+            guard !placed.contains(where: { $0.intersects(box) }) else { continue }
             o.text(text, x: pt.x, y: y, font: small, color: p.textDim, h: .center, v: .top)
-            placed.append(o.textBounds(text, x: pt.x, y: y, font: small, h: .center, v: .top).insetBy(dx: -3, dy: -2))
-            lastRight = left + width
+            placed.append(box)
         }
         // Time into the depth, at the left edge of the field. "now" at the near corner. Never on a frequency label.
         let step = timeStep
@@ -379,17 +431,24 @@ extension SpectrogramRenderer {
             }
             t += step
         }
-        // The dB scale: top value at the head of the line, the floor at its foot.
+        // The dB scale: top value at the head of the line, the floor at its foot. From the side its corner meets the
+        // frequency labels: then the scale is left out, line and all.
+        w.scaleShown = false
         if let ends = dbScaleEnds, !compact {
             let top = Fmt.number(topDB.rounded(), digits: 0), floor = Fmt.number(floorDB, digits: 0)
             let x = ends.top.x + 6
             let wTop = o.measure(top, font: small), wFloor = o.measure(floor, font: small)
-            if x + max(wTop, wFloor) <= inside.maxX, ends.bottom.y - ends.top.y > 26 {
+            let topBox = o.textBounds(top, x: x, y: ends.top.y, font: small, v: .middle).insetBy(dx: -3, dy: -2)
+            let floorBox = o.textBounds(floor, x: x, y: ends.bottom.y, font: small, v: .middle).insetBy(dx: -3, dy: -2)
+            let lineBox = CGRect(x: min(ends.top.x, ends.bottom.x) - 4, y: min(ends.top.y, ends.bottom.y),
+                                 width: abs(ends.top.x - ends.bottom.x) + 8, height: abs(ends.top.y - ends.bottom.y))
+            if x + max(wTop, wFloor) <= inside.maxX, ends.bottom.y - ends.top.y > 26,
+               !placed.contains(where: { $0.intersects(topBox) || $0.intersects(floorBox) || $0.intersects(lineBox) }) {
+                w.scaleShown = true
                 o.text(top, x: x, y: ends.top.y, font: small, color: p.text, v: .middle)
                 o.text(floor, x: x, y: ends.bottom.y, font: small, color: p.textDim, v: .middle)
-                let unit = "dB"
                 if ends.bottom.y - ends.top.y > 44 {
-                    o.text(unit, x: x, y: (ends.top.y + ends.bottom.y) / 2, font: small, color: p.textFaint, v: .middle)
+                    o.text("dB", x: x, y: (ends.top.y + ends.bottom.y) / 2, font: small, color: p.textFaint, v: .middle)
                 }
             }
         }

@@ -12,7 +12,10 @@ final class TimelineStripSplitView: NSSplitView, NSSplitViewDelegate {
     static let gap: CGFloat = 8
     /// Points the strip takes from the panels at its smallest: its 100 pt and the gap above it.
     static let smallestReserve = stripHeightRange.lowerBound + gap
-    private static let storageKey = "split.v2.timeline.height"
+    static let storageKey = "split.v2.timeline.height"
+    /// The waterfall layout keeps the strip squashed by default: loudness and peak only.
+    static let squashedStorageKey = "split.v2.timeline.height.waterfall"
+    private let storageKey: String
 
     private let content: NSView
     private let strip: NSView
@@ -25,12 +28,14 @@ final class TimelineStripSplitView: NSSplitView, NSSplitViewDelegate {
     /// The strip went away or came back because of the window height.
     var onStripVisibilityChange: (() -> Void)?
 
-    init(content: NSView, strip: NSView, contentMinimum: CGFloat) {
+    init(content: NSView, strip: NSView, contentMinimum: CGFloat, storageKey: String = TimelineStripSplitView.storageKey,
+         defaultHeight: CGFloat = TimelineStripSplitView.defaultStripHeight) {
         self.content = content
         self.strip = strip
         self.contentMinimum = contentMinimum
-        let stored = CGFloat(UserDefaults.standard.double(forKey: Self.storageKey))
-        wantedHeight = Self.stripHeightRange.contains(stored) ? stored : Self.defaultStripHeight
+        self.storageKey = storageKey
+        let stored = CGFloat(UserDefaults.standard.double(forKey: storageKey))
+        wantedHeight = Self.stripHeightRange.contains(stored) ? stored : defaultHeight
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         isVertical = false
         dividerStyle = .thin
@@ -91,6 +96,6 @@ final class TimelineStripSplitView: NSSplitView, NSSplitViewDelegate {
         let height = min(max(strip.frame.height, Self.stripHeightRange.lowerBound), Self.stripHeightRange.upperBound)
         wantedHeight = height
         lastApplied = (bounds.height, height)
-        UserDefaults.standard.set(Double(height), forKey: Self.storageKey)
+        UserDefaults.standard.set(Double(height), forKey: storageKey)
     }
 }

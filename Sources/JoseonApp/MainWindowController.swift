@@ -50,8 +50,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var allCards: [PanelCardView] { [spectrumCard, spectrogramCard, vectorscopeCard, metersCard, placementCard, timelineCard] }
     /// "Scope | Placement" in the title row of the stereo card.
     private let stereoModeControl = NSSegmentedControl(labels: ["Scope", "Placement"], trackingMode: .selectOne, target: nil, action: nil)
-    /// "Flat | Waterfall" in the title row of the spectrogram card.
+    /// "Flat | Waterfall" in the title row of the spectrogram card, and "Reset view" beside it while the field is turned.
     private let spectrogramModeControl = NSSegmentedControl(labels: ["Flat", "Waterfall"], trackingMode: .selectOne, target: nil, action: nil)
+    private let resetViewButton = NSButton(title: "Reset view", target: nil, action: nil)
+    private let spectrogramAccessory = NSStackView()
     static let scopeTitle = "Vectorscope"
     static let placementTitle = "Stereo placement"
 
@@ -113,7 +115,18 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         spectrogramModeControl.setAccessibilityLabel("Spectrogram view")
         spectrogramModeControl.setAccessibilityHelp("Flat shows the scrolling picture. Waterfall shows the history as a 3-D field. Command 6 shows the field over the whole window.")
         spectrogramModeControl.sizeToFit()
-        spectrogramCard.accessoryView = spectrogramModeControl
+        resetViewButton.bezelStyle = .accessoryBarAction
+        resetViewButton.controlSize = .small
+        resetViewButton.font = .systemFont(ofSize: 10.5, weight: .medium)
+        resetViewButton.toolTip = "Back to the resting view of the waterfall. A double click on the field does the same."
+        resetViewButton.setAccessibilityHelp("Returns the waterfall to its resting view.")
+        resetViewButton.isHidden = true
+        spectrogramAccessory.orientation = .horizontal
+        spectrogramAccessory.spacing = 8
+        spectrogramAccessory.alignment = .centerY
+        spectrogramAccessory.addArrangedSubview(resetViewButton)
+        spectrogramAccessory.addArrangedSubview(spectrogramModeControl)
+        spectrogramCard.accessoryView = spectrogramAccessory
 
         let window = MainWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800),
@@ -145,6 +158,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         stereoModeControl.action = #selector(stereoModeChanged(_:))
         spectrogramModeControl.target = self
         spectrogramModeControl.action = #selector(spectrogramModeChanged(_:))
+        resetViewButton.target = self
+        resetViewButton.action = #selector(resetWaterfallView(_:))
+        spectrogramView.onViewChange = { [weak self] in self?.updateResetViewButton() }
 
         buildContent(actions: actions)
         window.center()
@@ -290,7 +306,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         let tree: NSView
         if withTimeline {
-            let split = TimelineStripSplitView(content: panels, strip: timelineCard, contentMinimum: panelsMinimum)
+            // Under the waterfall the strip starts squashed (loudness and peak only) and remembers its own height.
+            let split = preset == .waterfall
+                ? TimelineStripSplitView(content: panels, strip: timelineCard, contentMinimum: panelsMinimum,
+                                         storageKey: TimelineStripSplitView.squashedStorageKey,
+                                         defaultHeight: TimelineStripSplitView.stripHeightRange.lowerBound)
+                : TimelineStripSplitView(content: panels, strip: timelineCard, contentMinimum: panelsMinimum)
             // The strip hides when the window is too low for it: its panel pauses then.
             split.onStripVisibilityChange = { [weak self] in self?.updatePauseState() }
             tree = split
@@ -412,6 +433,17 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         settings.spectrogramWaterfall = sender.selectedSegment == 1
     }
 
+    @objc private func resetWaterfallView(_ sender: Any?) { spectrogramView.resetView() }
+
+    /// The button shows only while the field is turned or zoomed away from its resting view.
+    private func updateResetViewButton() {
+        let show = spectrogramView.mode == .waterfall && spectrogramView.hasCustomView
+        if resetViewButton.isHidden == show {
+            resetViewButton.isHidden = !show
+            spectrogramCard.needsLayout = true
+        }
+    }
+
     // MARK: Keys
 
     private func handlePlainKey(_ key: String) -> Bool {
@@ -457,6 +489,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         let modeSegment = spectrogramMode == .waterfall ? 1 : 0
         if spectrogramModeControl.selectedSegment != modeSegment { spectrogramModeControl.selectedSegment = modeSegment }
         if spectrogramModeControl.isEnabled == forced { spectrogramModeControl.isEnabled = !forced }
+        updateResetViewButton()
         applyComparison()
     }
 
@@ -575,6 +608,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         menu.addItem(ClosureMenuItem(title: "Waterfall Over the Whole Window  (⌘6)", checked: forced) {
             s.layoutPreset = forced ? .essential : .waterfall
         })
+        if forced || s.spectrogramWaterfall {
+            let reset = ClosureMenuItem(title: "Reset View", checked: false) { [weak self] in self?.spectrogramView.resetView() }
+            reset.isEnabled = spectrogramView.hasCustomView
+            reset.toolTip = "Drag turns the field, scroll or pinch zooms it, a double click resets it."
+            menu.addItem(reset)
+        }
         menu.addItem(.separator())
         menu.addItem(header("History"))
         for seconds in AppSettings.historyChoices {

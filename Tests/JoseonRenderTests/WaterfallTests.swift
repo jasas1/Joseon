@@ -142,6 +142,42 @@ final class WaterfallTests: XCTestCase {
         }
     }
 
+    /// A drag turns the view, a reset brings the resting picture back; the cursor still names the cell under the pointer
+    /// from any angle, also from behind.
+    func testOrbitZoomAndResetAndTheCursorFromAnyAngle() throws {
+        try RenderTestSupport.requireMetal()
+        let session = try OffscreenRenderer.Session(panel: .spectrogram, size: CGSize(width: 1200, height: 600), scale: 2, theme: Theme(), settings: settings())
+        try session.feed(frames)
+        let r = try XCTUnwrap(session.renderer as? SpectrogramRenderer)
+        let rest = try session.snapshotPNG()
+        XCTAssertFalse(r.hasCustomView)
+        r.orbit(yawBy: 2.4, elevationBy: -0.2)
+        XCTAssertTrue(r.hasCustomView)
+        let turned = try session.snapshotPNG()
+        RenderTestSupport.write(turned, "waterfall-turned.png")
+        XCTAssertNotEqual(rest, turned)
+        r.zoom(by: 1.8)
+        let zoomed = try session.snapshotPNG()
+        RenderTestSupport.write(zoomed, "waterfall-zoomed.png")
+        XCTAssertNotEqual(turned, zoomed)
+        // Any yaw: the cursor under a projected cell names its frequency and time.
+        for yaw in [Float(0.9), 1.6, 3.0, -2.2] {
+            r.setView(yaw: yaw, elevation: 0.5)
+            for (hz, ago) in [(Float(1000), 3.0), (Float(120), 1.0)] {
+                let p = try XCTUnwrap(r.projectForTesting(hz: hz, secondsAgo: ago, height: 0.4), "yaw \(yaw)")
+                let c = try XCTUnwrap(r.cursor(at: p), "yaw \(yaw), \(hz) Hz")
+                XCTAssertLessThan(abs(log2(c.frequencyHz / hz)), 0.15, "yaw \(yaw): \(hz) Hz read as \(c.frequencyHz)")
+                XCTAssertEqual(try XCTUnwrap(c.secondsAgo), ago, accuracy: 0.7, "yaw \(yaw)")
+            }
+        }
+        // The elevation never goes under the floor.
+        r.orbit(yawBy: 0, elevationBy: -5)
+        XCTAssertGreaterThan(r.waterfall.elevation, 0.05)
+        r.resetView()
+        XCTAssertFalse(r.hasCustomView)
+        XCTAssertEqual(try session.snapshotPNG(), rest, "the resting picture must come back")
+    }
+
     func testGPUCostStaysInBudget() throws {
         #if DEBUG
         throw XCTSkip("Timing runs in release builds only")

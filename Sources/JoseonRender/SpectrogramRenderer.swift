@@ -119,6 +119,7 @@ final class SpectrogramRenderer: PanelRenderer {
         if mode == .waterfall {
             // The labels sit on the field: they move with the camera, re-laid out when it turned a quarter degree.
             h.combine(Int(waterfall.yaw * 230)); h.combine(Int(waterfall.elevation * 230)); h.combine(waterfall.depth)
+            h.combine(Int(waterfall.zoom * 50)); h.combine(Int(waterfall.distance * 4))
         }
         return h.finalize()
     }
