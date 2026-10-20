@@ -19,6 +19,7 @@ final class LiveViewTests: XCTestCase {
         let views: [PanelView] = [SpectrumView(frameProvider: provider), SpectrogramView(frameProvider: provider),
                                   VectorscopeView(frameProvider: provider), MetersView(frameProvider: provider)]
         let window = NSWindow(contentRect: CGRect(x: 80, y: 80, width: 960, height: 640), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
         let content = NSView(frame: CGRect(x: 0, y: 0, width: 960, height: 640))
         for (i, v) in views.enumerated() {
             v.frame = CGRect(x: CGFloat(i % 2) * 480, y: CGFloat(i / 2) * 320, width: 480, height: 320)

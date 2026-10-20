@@ -100,6 +100,11 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         popoverSpectrum.showStressBands = false
         popoverSpectrum.theme = Palette.current
         popoverSpectrum.isPaused = true
+        settings.$displayRefreshMode
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] mode in self?.popoverSpectrum.refreshMode = mode }
+            .store(in: &cancellables)
         popoverSpectrum.setAccessibilityElement(true)
         popoverSpectrum.setAccessibilityRole(.image)
         popoverSpectrum.setAccessibilityLabel("Spectrum graph")

@@ -461,6 +461,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Panel options
 
     private func applyPanelOptions() {
+        for panel in [spectrumView, spectrogramView, vectorscopeView, metersView, placementView, timelineView] as [PanelView] {
+            panel.refreshMode = settings.displayRefreshMode
+        }
         let options = settings.spectrumViewOptions
         if spectrumView.options != options {
             spectrumView.options = options

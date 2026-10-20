@@ -10,6 +10,7 @@ Real-time audio analyzer for macOS on Apple silicon. Joseon reads the audio that
 - Peak note readout, stream facts (sample rate, device), band energy
 - Headphone overlay: measured response (AutoEQ data) and predicted at-ear spectrum, stress flags
 - Menu bar mini spectrum
+- Balanced animation by default, with optional High Refresh up to 120 FPS in Settings → Display
 
 Capture uses a Core Audio process tap (macOS 14.4+). No driver. Audio stays on the Mac and is never recorded.
 

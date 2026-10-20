@@ -39,8 +39,14 @@ final class LivePerfTests: XCTestCase {
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.level = .floating       // an occluded window gets about 3 callbacks per second: keep it on top for the measurement
+        // Opt in to the fastest attached display to exercise 120 Hz on a laptop with a 60 Hz external main screen.
+        if ProcessInfo.processInfo.environment["JOSEON_LIVE_SCREEN"] == "fastest",
+           let screen = NSScreen.screens.max(by: { $0.maximumFramesPerSecond < $1.maximumFramesPerSecond }) {
+            window.setFrameOrigin(NSPoint(x: screen.visibleFrame.minX + 30, y: screen.visibleFrame.minY + 30))
+        }
         window.makeKeyAndOrderFront(nil)
         app.activate(ignoringOtherApps: true)
+        print("LIVEPERF screen: \(window.screen?.localizedName ?? "unknown"), maximum \(window.screen?.maximumFramesPerSecond ?? 0) Hz")
 
         // Analysis frames arrive at 60 Hz, like the engine.
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { _ in
@@ -50,18 +56,32 @@ final class LivePerfTests: XCTestCase {
             latest = f
         }
         RunLoop.main.add(timer, forMode: .common)
+        defer {
+            timer.invalidate()
+            views.forEach { $0.isPaused = true }
+            window.close()
+        }
 
-        RunLoop.main.run(until: Date().addingTimeInterval(2))     // warm up
-        let seconds = 6.0
-        let c0 = Self.cpuSeconds(), n0 = views.map(\.drawnFrameCount), t0 = CFAbsoluteTimeGetCurrent()
-        RunLoop.main.run(until: Date().addingTimeInterval(seconds))
-        let wall = CFAbsoluteTimeGetCurrent() - t0
-        let cpu = Self.cpuSeconds() - c0
-        let fps = zip(views.map(\.drawnFrameCount), n0).map { Double($0 - $1) / wall }
-        print(String(format: "LIVEPERF panels cpu %.1f %% of one core  fps %@  visible %@", cpu / wall * 100,
-                     fps.map { String(format: "%.0f", $0) }.joined(separator: "/"), window.occlusionState.contains(.visible) ? "yes" : "no"))
-
-        for v in views { print("LIVEPERF state \(v.kind.rawValue): \(v.debugRunState)") }
+        for mode in DisplayRefreshMode.allCases {
+            views.forEach { $0.refreshMode = mode }
+            RunLoop.main.run(until: Date().addingTimeInterval(2))     // warm up after changing cadence
+            let seconds = 6.0
+            let c0 = Self.cpuSeconds(), n0 = views.map(\.drawnFrameCount), t0 = CFAbsoluteTimeGetCurrent()
+            RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+            let wall = CFAbsoluteTimeGetCurrent() - t0
+            let cpu = Self.cpuSeconds() - c0
+            let fps = zip(views.map(\.drawnFrameCount), n0).map { Double($0 - $1) / wall }
+            guard fps.allSatisfy({ $0 > 1 }) else {
+                throw XCTSkip("The window server is not delivering live callbacks on this display; no CPU comparison is valid.")
+            }
+            print(String(format: "LIVEPERF %@ panels cpu %.1f %% of one core  fps %@  visible %@", mode.rawValue, cpu / wall * 100,
+                         fps.map { String(format: "%.0f", $0) }.joined(separator: "/"), window.occlusionState.contains(.visible) ? "yes" : "no"))
+            for (view, rate) in zip(views, fps) {
+                XCTAssertLessThanOrEqual(rate, Double(view.effectiveFramesPerSecond) + 2,
+                                         "actual draws must respect the \(mode.rawValue) cap for \(view.kind)")
+                print("LIVEPERF state \(view.kind.rawValue): \(view.debugRunState)")
+            }
+        }
 
         // The same loop with the panels paused: the cost of the harness itself.
         views.forEach { $0.isPaused = true }
@@ -69,7 +89,5 @@ final class LivePerfTests: XCTestCase {
         let c1 = Self.cpuSeconds(), t1 = CFAbsoluteTimeGetCurrent()
         RunLoop.main.run(until: Date().addingTimeInterval(3))
         print(String(format: "LIVEPERF paused cpu %.1f %% of one core", (Self.cpuSeconds() - c1) / (CFAbsoluteTimeGetCurrent() - t1) * 100))
-        timer.invalidate()
-        window.close()
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import ServiceManagement
+import JoseonRender
 
 /// Launch at login through SMAppService. Works only from the bundled Joseon.app.
 final class LoginItem: ObservableObject {
@@ -126,6 +127,15 @@ struct SettingsView: View {
             } header: { SettingsSectionHeader(title: "Now playing") }
             .listRowBackground(Color.joseonPanel)
 
+
+            Section {
+                Picker("Animation", selection: $settings.displayRefreshMode) {
+                    ForEach(DisplayRefreshMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                Text("Balanced uses less power. High Refresh allows smoother motion on supported displays and uses more power. Reduce Motion limits both modes to 30 FPS.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            } header: { SettingsSectionHeader(title: "Display") }
+            .listRowBackground(Color.joseonPanel)
 
             Section {
                 Toggle("Launch at login", isOn: Binding(

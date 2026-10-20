@@ -2,6 +2,10 @@ import Foundation
 import Combine
 import JoseonRender
 
+extension DisplayRefreshMode {
+    var title: String { self == .balanced ? "Balanced" : "High Refresh (up to 120 FPS)" }
+}
+
 /// Main window layout presets (⌘1 / ⌘2 / ⌘3, and ⌘6 for the waterfall: ⌘4 and ⌘5 are the placement and the timeline).
 enum LayoutPreset: String, CaseIterable, Identifiable {
     case essential, spectrum, metering
@@ -113,6 +117,9 @@ final class AppSettings: ObservableObject {
     @Published var comparisonHeadphoneMode: Bool { didSet { defaults.set(comparisonHeadphoneMode, forKey: "comparisonHeadphoneMode") } }
 
     // App
+    @Published var displayRefreshMode: DisplayRefreshMode {
+        didSet { defaults.set(displayRefreshMode.rawValue, forKey: "displayRefreshMode") }
+    }
     @Published var layoutPreset: LayoutPreset { didSet { defaults.set(layoutPreset.rawValue, forKey: "layoutPreset") } }
     @Published var miniGraphWidth: Int { didSet { defaults.set(miniGraphWidth, forKey: "miniGraphWidth") } }
     @Published var miniGraphColor: MiniGraphColor { didSet { defaults.set(miniGraphColor.rawValue, forKey: "miniGraphColor") } }
@@ -150,6 +157,7 @@ final class AppSettings: ObservableObject {
             "miniGraphWidth": 64, "miniGraphColor": MiniGraphColor.template.rawValue, "showDockIcon": true, "demoMode": false, "targetName": "",
             "hasSeenWelcome": false, "mainWindowWasOpen": true, "loudnessTarget": LoudnessTarget.off.rawValue,
             "autoResetAfterSilence": true, "checkUpdatesAutomatically": true,
+            "displayRefreshMode": DisplayRefreshMode.balanced.rawValue,
             "showNowPlaying": true, "nowPlayingInMenuBar": true, "nowPlayingMenuBarWidth": 140, "nowPlayingShowsHiRes": true,
             "showTimeline": true, "timelineWindowSeconds": 900, "timelineShowBands": true, "timelineShowEarLane": false,
         ])
@@ -176,6 +184,7 @@ final class AppSettings: ObservableObject {
         timelineShowBands = defaults.bool(forKey: "timelineShowBands")
         timelineShowEarLane = defaults.bool(forKey: "timelineShowEarLane")
         layoutPreset = LayoutPreset(rawValue: defaults.string(forKey: "layoutPreset") ?? "") ?? .essential
+        displayRefreshMode = DisplayRefreshMode(rawValue: defaults.string(forKey: "displayRefreshMode") ?? "") ?? .balanced
         miniGraphWidth = pick(defaults.integer(forKey: "miniGraphWidth"), from: Self.miniWidthChoices, fallback: 64)
         miniGraphColor = MiniGraphColor(rawValue: defaults.string(forKey: "miniGraphColor") ?? "") ?? .template
         showDockIcon = defaults.bool(forKey: "showDockIcon")

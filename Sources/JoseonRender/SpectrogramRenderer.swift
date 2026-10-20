@@ -231,7 +231,7 @@ final class SpectrogramRenderer: PanelRenderer {
             mirrorHead = (mirrorHead + 1) % Self.columns
             emittedColumns += 1
         }
-        stepCamera(dt: dt)
+        stepCamera(dt: animationDelta)
     }
 
     override func idle(dt: TimeInterval) { stepCamera(dt: dt) }

@@ -7,6 +7,11 @@ import JoseonCore
 
 public typealias FrameProvider = () -> AnalysisFrame
 
+/// Presentation only: audio analysis keeps its own rate in both modes.
+public enum DisplayRefreshMode: String, CaseIterable, Sendable {
+    case balanced, highRefresh
+}
+
 public enum PanelKind: String, CaseIterable, Sendable {
     case spectrum, spectrogram, vectorscope, meters
     /// The session timeline (last minutes of loudness, peaks and events). Its data comes from a `SessionSnapshot` provider.

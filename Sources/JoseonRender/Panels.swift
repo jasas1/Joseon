@@ -6,7 +6,7 @@ import JoseonCore
 /// Base class of the panels. One `CAMetalLayer`, driven by a `CAMetalDisplayLink`.
 /// Text (axis labels, readouts, the cursor label) is a texture inside the same Metal pass: see `TextLayer`.
 ///
-/// Cost control: the link runs at `preferredFramesPerSecond` (30 under Reduce Motion), and a tick draws nothing when
+/// Cost control: the link follows the refresh mode and screen (at most 30 under Reduce Motion), and a tick draws nothing when
 /// the analysis frame is the one already on screen and nothing animates.
 open class PanelView: NSView, CAMetalDisplayLinkDelegate, CALayerDelegate {
     public let kind: PanelKind
@@ -14,9 +14,14 @@ open class PanelView: NSView, CAMetalDisplayLinkDelegate, CALayerDelegate {
     public var theme = Theme() { didSet { renderer?.theme = theme; applyAccessibilityDisplayOptions() } }
     /// Pause drawing (window hidden). Panels must stop their display link when true.
     public var isPaused = false { didSet { updateRunState() } }
-    /// Upper limit of the redraw rate. Default 60 (the analysis engine makes about 60 frames per second); the meters and the
-    /// spectrogram default to 30, which is as smooth as their content moves. Reduce Motion caps every panel at 30.
+    /// Balanced redraw rate. Default 60; meters and flat spectrogram use 30, waterfall uses 60.
+    /// High Refresh overrides this for eligible panels. Reduce Motion caps every panel at 30.
     public var preferredFramesPerSecond: Int { didSet { if preferredFramesPerSecond != oldValue { applyFrameRate() } } }
+    /// High Refresh allows up to 120 Hz for interactive plots and continuously animated fields.
+    public var refreshMode: DisplayRefreshMode = .balanced {
+        didSet { if refreshMode != oldValue { applyFrameRate() } }
+    }
+    var supportsHighRefresh: Bool { kind == .spectrum || kind == .vectorscope }
 
     /// The cursor this panel shares with the other panels of its window (one link per window, the same object in every
     /// panel). Nil (default) = the per-panel hover of before, unchanged. With a link: the pointer in the spectrum, the
@@ -133,8 +138,12 @@ open class PanelView: NSView, CAMetalDisplayLinkDelegate, CALayerDelegate {
         displayLink?.invalidate()
         displayLink = nil
         guard let window, renderer != nil else { return }
-        for name in [NSWindow.didChangeOcclusionStateNotification, NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification] {
-            observers.append(nc.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in self?.updateRunState() })
+        for name in [NSWindow.didChangeOcclusionStateNotification, NSWindow.didMiniaturizeNotification,
+                     NSWindow.didDeminiaturizeNotification, NSWindow.didChangeScreenNotification] {
+            observers.append(nc.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                self?.applyFrameRate()
+                self?.updateRunState()
+            })
         }
         let link = CAMetalDisplayLink(metalLayer: metalLayer)
         link.delegate = self
@@ -168,15 +177,28 @@ open class PanelView: NSView, CAMetalDisplayLinkDelegate, CALayerDelegate {
         }
     }
 
-    /// The rate the display link asks for: `preferredFramesPerSecond`, at most 30 under Reduce Motion.
+    /// The rate the display link asks for, capped by the window's screen and Reduce Motion.
     public var effectiveFramesPerSecond: Int {
-        let top = min(max(preferredFramesPerSecond, 1), 120)
-        return reduceMotion ? min(top, 30) : top
+        Int(requestedFrameRateRange.maximum)
     }
 
+    var requestedFrameRateRange: CAFrameRateRange {
+        let preferred = refreshMode == .highRefresh && supportsHighRefresh ? 120 : preferredFramesPerSecond
+        return Self.frameRateRange(preferred: preferred,
+                                   screenMaximum: window?.screen?.maximumFramesPerSecond ?? 60,
+                                   reduceMotion: reduceMotion)
+    }
+
+    static func frameRateRange(preferred: Int, screenMaximum: Int, reduceMotion: Bool) -> CAFrameRateRange {
+        let top = Float(min(max(preferred, 1), max(screenMaximum, 1), reduceMotion ? 30 : 120))
+        return CAFrameRateRange(minimum: min(30, top), maximum: top, preferred: top)
+    }
+
+    /// Actual link configuration, so regression tests cover the scheduling path as well as the policy.
+    var displayLinkFrameRateRange: CAFrameRateRange? { displayLink?.preferredFrameRateRange }
+
     private func applyFrameRate() {
-        let top = Float(effectiveFramesPerSecond)
-        displayLink?.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 120)
+        displayLink?.preferredFrameRateRange = requestedFrameRateRange
     }
 
     private func applyAccessibilityDisplayOptions() {
@@ -203,7 +225,7 @@ open class PanelView: NSView, CAMetalDisplayLinkDelegate, CALayerDelegate {
             let frame = frameProvider()
             if frame.hostTime != lastFrameHostTime || renderer.frame == nil {
                 lastFrameHostTime = frame.hostTime
-                renderer.ingest(frame)
+                renderer.ingest(frame, animationDelta: dt)
                 changed = renderer.frameChanged
             } else {
                 renderer.idle(dt: dt)
@@ -517,8 +539,15 @@ public final class SpectrogramView: PanelView {
     /// Seconds of history across the view width (flat) or into the depth (waterfall).
     public var historySeconds: Double = 20
     /// The flat picture (default) or the 3-D waterfall. A switch keeps the history.
-    public var mode = SpectrogramMode.flat
-    private var appliedMode = SpectrogramMode.flat
+    public var mode = SpectrogramMode.flat {
+        didSet {
+            if mode != oldValue {
+                // Update even while paused, so the next visible frame has the right cadence.
+                preferredFramesPerSecond = mode == .waterfall ? 60 : 30
+            }
+        }
+    }
+    override var supportsHighRefresh: Bool { mode == .waterfall }
     /// Waterfall: called after the user turned, zoomed or reset the view.
     public var onViewChange: (() -> Void)?
     /// Waterfall: true when the user turned or zoomed the view away from the resting one.
@@ -580,11 +609,6 @@ public final class SpectrogramView: PanelView {
         guard let r = renderer as? SpectrogramRenderer else { return }
         r.historySeconds = max(historySeconds, 1)
         if r.mode != mode { r.mode = mode }
-        if mode != appliedMode {
-            // The flat picture moves at 30 fps; the camera of the waterfall wants the display rate.
-            appliedMode = mode
-            preferredFramesPerSecond = mode == .waterfall ? 60 : 30
-        }
     }
 }
 

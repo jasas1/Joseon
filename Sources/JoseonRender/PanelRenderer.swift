@@ -101,6 +101,9 @@ class PanelRenderer {
     private(set) var scale: CGFloat = 2
     private(set) var lastHostTime: TimeInterval = 0
     private(set) var frameDelta: TimeInterval = 1.0 / 60.0
+    /// Presentation time since the previous display callback, independent of the analysis-frame cadence.
+    /// Offscreen callers default to frame time; live callers also animate between analysis frames.
+    private(set) var animationDelta: TimeInterval = 1.0 / 60.0
     private(set) var ingestCount = 0
 
     /// GPU seconds of the last completed command buffer (set by the owner).
@@ -166,10 +169,11 @@ class PanelRenderer {
 
     // MARK: Driving
 
-    func ingest(_ f: AnalysisFrame) {
+    func ingest(_ f: AnalysisFrame, animationDelta: TimeInterval? = nil) {
         var dt = frame == nil ? 1.0 / 60.0 : f.hostTime - lastHostTime
         if !(dt > 0) || dt > 0.5 { dt = 1.0 / 60.0 }
         frameDelta = dt
+        self.animationDelta = animationDelta ?? dt
         lastHostTime = f.hostTime
         frame = f
         ingestCount &+= 1

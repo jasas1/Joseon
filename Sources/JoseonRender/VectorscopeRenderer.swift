@@ -209,10 +209,10 @@ final class VectorscopeRenderer: PanelRenderer {
     // MARK: State
 
     override func update(frame f: AnalysisFrame, dt: TimeInterval) {
-        pendingFade += dt
+        pendingFade += animationDelta
         let pts = f.stereo.scopePoints
         pendingPoints = !f.isSilent && (mode == .panSpectrum || !pts.isEmpty)
-        if pendingPoints { sinceLight = 0 } else { sinceLight += dt }
+        if pendingPoints { sinceLight = 0 } else { sinceLight += animationDelta }
         updateGain(pts, dt: dt)
         let kc = Float(1 - exp(-dt / 0.12))
         shownCorrelation += (f.stereo.correlation - shownCorrelation) * kc
