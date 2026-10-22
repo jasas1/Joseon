@@ -83,6 +83,23 @@ decimals. The decimation error of the five was not measured.
 Not in AutoEq on that date, and so not embedded: a "Tea Pro SE" (the Tea Pro stands in for it) and
 a "CrinEar Reference" (AutoEq has the CrinEar Meta and Daybreak only).
 
+### Headphone response added on 2026-10-21
+
+Fetch date: **2026-10-21**. Same steps and same script as 2026-10-08. The script was checked
+again against Sennheiser HD 600 and Apple AirPods Pro 2: the largest difference is 0.01 dB.
+
+| Embedded name | AutoEq path (under `master/`) | Measurer |
+|---|---|---|
+| Abyss AB-1266 Phi TC | `results/oratory1990/over-ear/Abyss AB1-266 Phi TC/Abyss AB1-266 Phi TC.csv` | oratory1990 |
+
+AutoEq spells the model "AB1-266"; Joseon uses the maker's "AB-1266". Kuulokenurkka also
+measured it; the oratory1990 file was chosen because its stored target is Harman over-ear
+2018, the target Joseon pairs with over-ear curves. Decimation error: max 0.12 dB, mean 0.01 dB.
+
+Not in AutoEq on that date, and so not embedded: the **Abyss Diana TC Signature**. AutoEq has
+the Diana MR, Diana Phi and Diana V2 only. None of them stands in for it: the TC Signature has
+its own driver.
+
 ### Target curves
 
 | Embedded name | AutoEq path (under `master/`) |

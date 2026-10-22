@@ -30,7 +30,7 @@ app asks the user for a number and says why.
 
 ## Sensitivity: what was found
 
-Ten of the seventeen embedded curves have a citable figure. The last four rows were added on 2026-10-08.
+Eleven of the eighteen embedded curves have a citable figure. Four rows were added on 2026-10-08, and the Abyss row on 2026-10-21.
 
 | Curve name | Published spec line, verbatim | Impedance | dB SPL / V used | Source URL |
 |---|---|---|---|---|
@@ -42,6 +42,7 @@ Ten of the seventeen embedded curves have a citable figure. The last four rows w
 | Sony WH-1000XM5 | "Sensitivity: 102 dB/mW (when connecting via the headphone cable with the headset turned on)" | 48 Ω (1 kHz) | 115.19 | <https://helpguide.sony.net/mdr/wh1000xm5/v1/en/contents/TP1000541014.html> |
 | Beyerdynamic DT 900 Pro X | "Nominal sound pressure level 100 dB SPL (1mW/500Hz)" | 48 ohms | 113.19 | <https://global.beyerdynamic.com/p/dt-900-pro-x> |
 | 64 Audio U12t (m15, m20 and mX module: three curves, one figure) | "Sensitivity 108 dB/mW @ 1 kHz" | 12.6 Ω | 127.00 | <https://www.64audio.com/products/u12t> |
+| Abyss AB-1266 Phi TC | "Sensitivity: 88 db/mW" | "50 ohm nominal" | 101.01 | <https://abyss-headphones.com/products/abyss-ab-1266-phi-headphone> |
 
 ### Per-entry caveats
 
@@ -50,6 +51,10 @@ Ten of the seventeen embedded curves have a citable figure. The last four rows w
 **64 Audio** prints one figure for the U12t and does not say which Apex module it was taken
 with. The three module curves share it. The modules differ mostly in the bass, so the error at
 1 kHz is expected to be small, but it is not measured.
+
+**Abyss** gives no frequency for its figure. The product page now names the headphone
+"AB1266 TC", and its address still reads `abyss-ab-1266-phi-headphone`. The figure is
+paired with the oratory1990 "Phi TC" curve on that basis.
 
 **Sennheiser** labels the line "Sound pressure level (SPL)", not "Sensitivity". It is
 nonetheless dB SPL at 1 V, which is exactly what the contract wants, so nothing is converted.

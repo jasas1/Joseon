@@ -10,7 +10,7 @@ import JoseonCore
 ///
 /// A headphone whose maker publishes no usable figure is **not in this library**. It is in
 /// `unlisted` instead, with the reason, so the app can say why it is asking the user to type
-/// a number rather than silently showing a wrong one. Seven of the seventeen embedded curves are
+/// a number rather than silently showing a wrong one. Seven of the eighteen embedded curves are
 /// in that state, including the first user's own HiFiMAN Susvara Unveiled.
 ///
 /// Keys are the same `HeadphoneCurve.name` strings `HeadphoneLibrary` uses.
@@ -135,6 +135,15 @@ public enum HeadphoneSensitivityLibrary {
         source: "64 Audio U12t product page, \"Sensitivity 108 dB/mW @ 1 kHz\", 12.6 Ω — 64audio.com/products/u12t, fetched 2026-10-08"
     )
 
+    /// Abyss gives no frequency for the figure. The page now sells the headphone as the
+    /// "AB1266 TC" under the address `abyss-ab-1266-phi-headphone`; it is paired with the
+    /// Phi TC that oratory1990 measured on that basis.
+    public static let ab1266PhiTC = HeadphoneSensitivity.fromDBPerMilliwatt(
+        88,
+        impedanceOhms: 50,
+        source: "Abyss AB1266 TC product page, \"Sensitivity: 88 db/mW\", \"Impedance: 50 ohm nominal\" — abyss-headphones.com/products/abyss-ab-1266-phi-headphone, fetched 2026-10-21"
+    )
+
     // MARK: - Lookup
 
     /// Every verified entry, keyed by the curve name `HeadphoneLibrary` uses.
@@ -149,6 +158,7 @@ public enum HeadphoneSensitivityLibrary {
         "64 Audio U12t (m15 module)": u12t,
         "64 Audio U12t (m20 module)": u12t,
         "64 Audio U12t (mX module)": u12t,
+        "Abyss AB-1266 Phi TC": ab1266PhiTC,
     ]
 
     /// Published sensitivity for a curve name, or `nil` when the maker publishes none.

@@ -53,14 +53,16 @@ final class SensitivityLibraryTests: XCTestCase {
     func testEveryEntryCitesItsSourceAndDate() {
         for (name, sensitivity) in HeadphoneSensitivityLibrary.byCurveName {
             XCTAssertTrue(
-                sensitivity.source.contains("2026-09-21") || sensitivity.source.contains("2026-10-08"),
+                sensitivity.source.contains("2026-09-21") || sensitivity.source.contains("2026-10-08")
+                    || sensitivity.source.contains("2026-10-21"),
                 "\(name) has no fetch date"
             )
             XCTAssertTrue(sensitivity.source.contains("fetched"), "\(name) does not say it was fetched")
             XCTAssertTrue(
                 sensitivity.source.contains("sennheiser") || sensitivity.source.contains("focal")
                     || sensitivity.source.contains("audeze") || sensitivity.source.contains("sony")
-                    || sensitivity.source.contains("beyerdynamic") || sensitivity.source.contains("64audio"),
+                    || sensitivity.source.contains("beyerdynamic") || sensitivity.source.contains("64audio")
+                    || sensitivity.source.contains("abyss-headphones"),
                 "\(name) does not cite a manufacturer domain"
             )
             XCTAssertFalse(sensitivity.source.isEmpty)
@@ -86,6 +88,7 @@ final class SensitivityLibraryTests: XCTestCase {
             "Focal Utopia", "Audeze LCD-X (2021)", "Sony WH-1000XM5",
             "Beyerdynamic DT 900 Pro X",
             "64 Audio U12t (m15 module)", "64 Audio U12t (m20 module)", "64 Audio U12t (mX module)",
+            "Abyss AB-1266 Phi TC",
         ])
     }
 

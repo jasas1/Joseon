@@ -1,5 +1,6 @@
 // Generated from AutoEq measurement data on 2026-09-20. Do not edit by hand.
 // Five headphones were added on 2026-10-08 with the same steps (docs/third-party-autoeq.md).
+// One more (Abyss AB-1266 Phi TC) was added on 2026-10-21 the same way.
 // Source: https://github.com/jaakkopasanen/AutoEq (MIT license).
 //
 // The measurement data below is derived from AutoEq and is used under its license:
@@ -463,6 +464,31 @@ public enum EmbeddedCurves {
         ]
     )
 
+    /// Abyss AB-1266 Phi TC — oratory1990 (AutoEq results, over-ear)
+    /// AutoEq: `results/oratory1990/over-ear/Abyss AB1-266 Phi TC/Abyss AB1-266 Phi TC.csv` (column `raw`)
+    public static let ab1266PhiTC = HeadphoneCurve(
+        name: "Abyss AB-1266 Phi TC",
+        source: "oratory1990 (AutoEq results, over-ear)",
+        frequenciesHz: standardFrequenciesHz,
+        levelsDB: [
+            -4.51, -4.46, -4.36, -4.27, -4.19, -4.15, -4.14, -4.17, -4.18, -4.25, -4.31, -4.39, -4.44, -4.46,
+            -4.47, -4.51, -4.53, -4.56, -4.59, -4.60, -4.62, -4.63, -4.62, -4.60, -4.61, -4.65, -4.67, -4.71,
+            -4.76, -4.82, -4.87, -4.94, -4.99, -5.05, -5.10, -5.15, -5.19, -5.22, -5.26, -5.30, -5.33, -5.35,
+            -5.36, -5.39, -5.39, -5.39, -5.39, -5.39, -5.39, -5.39, -5.39, -5.39, -5.39, -5.39, -5.38, -5.35,
+            -5.35, -5.35, -5.34, -5.30, -5.30, -5.27, -5.24, -5.21, -5.16, -5.11, -5.05, -4.97, -4.90, -4.82,
+            -4.76, -4.71, -4.64, -4.58, -4.49, -4.40, -4.30, -4.28, -4.31, -4.36, -4.40, -4.45, -4.51, -4.50,
+            -4.48, -4.65, -4.87, -5.06, -5.27, -5.53, -5.62, -5.46, -5.20, -4.91, -4.63, -4.38, -4.15, -3.90,
+            -3.65, -3.38, -3.11, -2.81, -2.48, -2.16, -1.86, -1.60, -1.33, -1.09, -0.86, -0.67, -0.48, -0.27,
+            -0.10, 0.03, 0.05, 0.04, -0.01, -0.04, -0.02, 0.01, -0.01, -0.07, -0.18, -0.35, -0.63, -0.99,
+            -1.38, -1.78, -2.13, -2.45, -2.65, -2.70, -2.54, -2.24, -1.78, -1.20, -0.52, 0.19, 0.85, 1.41,
+            1.80, 2.00, 2.00, 1.88, 1.55, 1.14, 0.74, 0.37, -0.04, -0.53, -1.07, -1.55, -1.85, -1.90, -1.84, -1.73,
+            -1.56, -0.90, 0.33, 1.66, 2.38, 2.00, 1.02, -0.53, -2.69, -5.29, -7.49, -7.89, -6.38, -4.36, -3.08,
+            -2.89, -3.37, -3.88, -4.45, -5.72, -7.75, -9.54, -9.69, -8.30, -6.76, -5.55, -4.57, -3.67, -2.63,
+            -1.81, -2.06, -3.22, -4.06, -4.36, -5.50, -7.25, -7.89, -6.96, -6.26, -6.83, -7.79, -8.11, -7.81,
+            -7.59
+        ]
+    )
+
     // MARK: - Targets
 
     /// Harman over-ear 2018 — AutoEq targets
@@ -573,6 +599,7 @@ public enum EmbeddedCurves {
         u12tM20,
         u12tMX,
         teaPro,
+        ab1266PhiTC,
     ]
 
     /// Every embedded target curve, in display order.
