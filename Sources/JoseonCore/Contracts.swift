@@ -35,13 +35,14 @@ public struct StreamInfo: Equatable, Sendable {
     }
 }
 
-/// What the source app plays now, read from its own player UI (Qobuz first). Text only; never audio.
+/// What the source app plays now: Qobuz from its player UI, Roon from its extension API, Apple Music and Spotify from
+/// their notifications. Text only; never audio.
 public struct NowPlaying: Equatable, Sendable {
     public var title: String
     public var artist: String
     /// Empty when the player shows none.
     public var album: String
-    /// The app it was read from, for example "Qobuz".
+    /// The app it was read from, for example "Qobuz" or "Roon".
     public var source: String
     /// The player marks the stream as hi-res.
     public var isHiRes: Bool
@@ -60,7 +61,7 @@ public struct NowPlaying: Equatable, Sendable {
     }
 }
 
-/// A reader of `NowPlaying`. JoseonCapture implements it with the Accessibility API; tests use a fake.
+/// A reader of `NowPlaying`. JoseonCapture implements one per player; tests use a fake.
 public protocol NowPlayingSource: AnyObject {
     /// Nil when nothing is known (no player, no permission, no track).
     var current: NowPlaying? { get }

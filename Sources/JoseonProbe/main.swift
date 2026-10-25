@@ -86,6 +86,10 @@ usage:
   joseon-probe measure-selftest    offline checks of the measurement input logic (no audio I/O); exit 5 on a FAIL
   joseon-probe now-playing         read the Qobuz player bar once through Accessibility, as JSON
                                    {"trusted":bool,"running":bool,"nowPlaying":{...}|null}; never prompts for the permission
+  joseon-probe roon-now-playing [--seconds N]
+                                   follow the Roon Core on this Mac for N s (default 10) and print each track change as
+                                   one JSON line {"nowPlaying":{...}|null}; shares the app's Roon token, so an Enable
+                                   in Roon › Settings › Extensions counts for both
 """
 
 // MARK: - JSON shapes
@@ -366,6 +370,21 @@ func runNowPlaying() -> Never {
     exit(0)
 }
 
+// MARK: - roon-now-playing
+
+/// The app's own Roon reader with the app's defaults, so the probe and the app are one extension to the Core.
+func runRoonNowPlaying(seconds: Double) -> Never {
+    let reader = RoonNowPlayingReader(defaults: UserDefaults(suiteName: "app.joseon.Joseon") ?? .standard)
+    func line(_ value: NowPlaying?) -> Any {
+        value.map { ["title": $0.title, "artist": $0.artist, "album": $0.album, "source": $0.source, "line": $0.line] as [String: Any] } ?? NSNull()
+    }
+    reader.onChange = { emit(["nowPlaying": line($0)]) }
+    reader.start()
+    RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+    reader.stop()
+    exit(0)
+}
+
 // MARK: - render
 
 /// Frames older than this are dropped from a long offline run: no panel shows more history by default.
@@ -480,5 +499,6 @@ case "render": runRender(args)
 case "measure-devices": runMeasureDevices()
 case "measure-selftest": runMeasureSelfTest()
 case "now-playing": runNowPlaying()
+case "roon-now-playing": runRoonNowPlaying(seconds: max(1, args.double("seconds", default: 10)))
 default: fail(usage, code: 1)
 }

@@ -100,7 +100,8 @@ struct HeaderStrip: View {
             StateBadge(state: model.header.state)
             // ViewThatFits measures the full text width: it picks a level where the stream facts show whole.
             // Only the narrow level, with very long names, shortens the first fact.
-            StreamBlock(header: model.header)
+            StreamBlock(header: model.header, nowPlaying: settings.showNowPlaying ? model.nowPlaying : nil,
+                        showsHiRes: settings.nowPlayingShowsHiRes, marqueeIdealWidth: 40)
                 .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
             if model.isFrozen { PausedPill(model: model) }
             Picker("Layout", selection: $settings.layoutPreset) {
@@ -147,7 +148,8 @@ struct FullScreenHeaderStrip: View {
     var body: some View {
         HStack(spacing: 10) {
             StateBadge(state: model.header.state)
-            StreamBlock(header: model.header)
+            StreamBlock(header: model.header, nowPlaying: settings.showNowPlaying ? model.nowPlaying : nil,
+                        showsHiRes: settings.nowPlayingShowsHiRes, marqueeIdealWidth: 40)
                 .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
             if model.isFrozen { PausedPill(model: model) }
             LayoutStepper(settings: settings)
@@ -236,11 +238,14 @@ struct FullScreenMenu: View {
 /// Two lines: the apps that play (or "Waiting for audio"), then device · sample rate · bit depth.
 struct StreamBlock: View {
     var header: HeaderState
-    /// The track the player shows, after the source name. The popover passes it; the main window header does not.
+    /// The track the player shows, after the source name.
     var nowPlaying: NowPlaying? = nil
     var showsHiRes = true
     /// False while the popover is closed: the marquee then runs no timer.
     var marqueeActive = true
+    /// The width the track line asks for when nothing limits it. The main window header asks for little, so its
+    /// `ViewThatFits` keeps the same controls whether a track shows or not; the line then takes the room left over.
+    var marqueeIdealWidth: CGFloat = 120
 
     /// Nil while there is no track, or while the headline is a notice or the demo signal.
     private var nowPlayingText: String? {
@@ -260,7 +265,8 @@ struct StreamBlock: View {
                     .layoutPriority(1)
                 if nowPlayingText != nil {
                     // Very small, light grey, scrolling only when it does not fit. Spoken with the block below.
-                    NowPlayingMarqueeHost(nowPlaying: nowPlaying, showsHiRes: showsHiRes, isActive: marqueeActive)
+                    NowPlayingMarqueeHost(nowPlaying: nowPlaying, showsHiRes: showsHiRes, isActive: marqueeActive,
+                                          idealWidth: marqueeIdealWidth)
                         .frame(minWidth: 40, maxWidth: .infinity, alignment: .leading)
                         .accessibilityHidden(true)
                 }

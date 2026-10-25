@@ -136,12 +136,14 @@ final class NowPlayingView: NSView {
     }
 }
 
-/// `NowPlayingView` for the SwiftUI popover header. Takes the width SwiftUI offers, one line high.
+/// `NowPlayingView` for the SwiftUI headers (popover and main window). Takes the width SwiftUI offers, one line high.
 struct NowPlayingMarqueeHost: NSViewRepresentable {
     var nowPlaying: NowPlaying?
     var showsHiRes: Bool
     /// False while the popover is closed: the view then runs no timer.
     var isActive: Bool
+    /// Width asked for when SwiftUI proposes none (an ideal-size pass, as `ViewThatFits` makes).
+    var idealWidth: CGFloat = 120
 
     func makeNSView(context: Context) -> NowPlayingView {
         let view = NowPlayingView(style: .popover)
@@ -157,6 +159,6 @@ struct NowPlayingMarqueeHost: NSViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NowPlayingView, context: Context) -> CGSize? {
-        CGSize(width: proposal.width ?? 120, height: NowPlayingView.lineHeight)
+        CGSize(width: proposal.width ?? idealWidth, height: NowPlayingView.lineHeight)
     }
 }

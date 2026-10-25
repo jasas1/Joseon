@@ -149,10 +149,10 @@ final class AppModel: ObservableObject {
 
     private(set) var source: AudioSource?
 
-    /// The track the player shows, read from its window. Nil when nothing is known (no player, no permission, no track).
+    /// The track a player shows (Qobuz, Roon, Apple Music or Spotify). Nil when nothing is known (no player, no permission, no track).
     @Published private(set) var nowPlaying: NowPlaying?
     let nowPlayingSource: NowPlayingSource
-    /// The Accessibility permission, as two seams so the app builds without the real reader.
+    /// The Accessibility permission (the Qobuz reader only), as two seams so the app builds without the real reader.
     let nowPlayingTrust: NowPlayingTrust
     /// The shell's one explanation before the first trust request. Main queue, at most once per launch.
     var onNowPlayingTrustNeeded: (() -> Void)?
@@ -248,9 +248,13 @@ final class AppModel: ObservableObject {
     init(settings: AppSettings, nowPlayingSource: NowPlayingSource? = nil, nowPlayingTrust: NowPlayingTrust? = nil) {
         self.settings = settings
         self.appliedDemoMode = settings.demoMode
-        // The real reader (Accessibility API) unless a test or JOSEON_NOWPLAYING_FAKE=1 asks for the fake.
+        // The real readers (Qobuz through Accessibility, Roon through its extension API, Apple Music and Spotify through
+        // their notifications) unless a test or JOSEON_NOWPLAYING_FAKE=1 asks for the fake.
         let useFake = ProcessInfo.processInfo.environment["JOSEON_NOWPLAYING_FAKE"] == "1"
-        self.nowPlayingSource = nowPlayingSource ?? (useFake ? FakeNowPlayingSource() : AccessibilityNowPlayingReader())
+        self.nowPlayingSource = nowPlayingSource ?? (useFake ? FakeNowPlayingSource() : MergedNowPlayingSource([
+            AccessibilityNowPlayingReader(), RoonNowPlayingReader(),
+            PlayerNotificationReader(player: .appleMusic), PlayerNotificationReader(player: .spotify),
+        ]))
         self.nowPlayingTrust = nowPlayingTrust ?? (useFake ? .fake : NowPlayingTrust(
             isTrusted: { AccessibilityNowPlayingReader.isTrusted },
             requestTrust: { AccessibilityNowPlayingReader.requestTrust() }))
