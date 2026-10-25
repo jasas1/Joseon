@@ -57,6 +57,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     static let scopeTitle = "Vectorscope"
     static let placementTitle = "Stereo placement"
 
+    /// Empty: it makes the title bar as tall as the header. Off in full screen (see `windowWillEnterFullScreen`).
+    private let mainToolbar = NSToolbar(identifier: "JoseonMainToolbar")
     private let root = NSView()
     private let body = NSView()
     private var builtLayoutKey: String?
@@ -138,9 +140,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.titlebarSeparatorStyle = .none
         // An empty unified toolbar makes the title bar as tall as the header strip,
         // so the traffic lights sit on the header's center line.
-        let toolbar = NSToolbar(identifier: "JoseonMainToolbar")
-        toolbar.showsBaselineSeparator = false
-        window.toolbar = toolbar
+        mainToolbar.showsBaselineSeparator = false
+        window.toolbar = mainToolbar
         window.toolbarStyle = .unified
         window.appearance = NSAppearance(named: .darkAqua)
         window.backgroundColor = Palette.background
@@ -402,8 +403,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         if !isTerminating { settings.mainWindowWasOpen = false }
         DispatchQueue.main.async { [weak self] in self?.updatePauseState() }
     }
+    /// In full screen macOS moves the toolbar into a window of its own over the top of the content, and it covered
+    /// the whole header. The toolbar only centers the traffic lights on the header, so full screen goes without it.
+    func windowWillEnterFullScreen(_ notification: Notification) { window?.toolbar = nil }
     func windowDidEnterFullScreen(_ notification: Notification) { windowState.isFullScreen = true }
+    func windowDidFailToEnterFullScreen(_ window: NSWindow) { window.toolbar = mainToolbar }
     func windowWillExitFullScreen(_ notification: Notification) { windowState.isFullScreen = false }
+    func windowDidExitFullScreen(_ notification: Notification) { window?.toolbar = mainToolbar }
 
     func show() {
         guard let window else { return }

@@ -26,8 +26,14 @@ struct TopAreaView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderStrip(model: model, settings: settings, leadingInset: windowState.isFullScreen ? 14 : 80)
-                .frame(height: Self.headerHeight)
+            Group {
+                if windowState.isFullScreen {
+                    FullScreenHeaderStrip(model: model, settings: settings)
+                } else {
+                    HeaderStrip(model: model, settings: settings, leadingInset: 80)
+                }
+            }
+            .frame(height: Self.headerHeight)
             if let error = model.captureError {
                 BannerView(
                     symbol: "exclamationmark.triangle.fill", tint: .joseonWarn,
@@ -106,7 +112,7 @@ struct HeaderStrip: View {
             .labelsHidden()
             .fixedSize()
             .accessibilityLabel("Layout preset")
-            .help("Layout: ⌘1 Essential, ⌘2 Spectrum, ⌘3 Metering")
+            .help("Layout: ⌘1 Essential, ⌘2 Spectrum, ⌘3 Metering, ⌘6 Waterfall")
 
             if density == .narrow || density == .combined {
                 HeadphonesMenu(model: model, settings: settings, showsName: density == .combined)
@@ -130,6 +136,100 @@ struct HeaderStrip: View {
         }
         .padding(.trailing, 12)
         .controlSize(.regular)
+    }
+}
+
+/// Full screen keeps the header quiet: the stream, a ‹ › layout switcher and one ☰ menu for everything else.
+struct FullScreenHeaderStrip: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var settings: AppSettings
+
+    var body: some View {
+        HStack(spacing: 10) {
+            StateBadge(state: model.header.state)
+            StreamBlock(header: model.header)
+                .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
+            if model.isFrozen { PausedPill(model: model) }
+            LayoutStepper(settings: settings)
+            FullScreenMenu(model: model, settings: settings)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 12)
+        .controlSize(.regular)
+    }
+}
+
+/// "‹ Waterfall ›": steps through the layout presets in the menu order, wrapping at both ends.
+struct LayoutStepper: View {
+    @ObservedObject var settings: AppSettings
+
+    var body: some View {
+        HStack(spacing: 2) {
+            step(-1, symbol: "chevron.left", label: "Previous layout")
+            // As wide as the longest title, so the arrows stay where they are.
+            ZStack {
+                ForEach(LayoutPreset.allCases) { Text($0.title).hidden() }
+                Text(settings.layoutPreset.title).foregroundStyle(Color.joseonText)
+            }
+            .font(.system(size: 12, weight: .medium))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Layout")
+            .accessibilityValue(settings.layoutPreset.title)
+            step(1, symbol: "chevron.right", label: "Next layout")
+        }
+        .fixedSize()
+        .help("Layout: ⌘1 Essential, ⌘2 Spectrum, ⌘3 Metering, ⌘6 Waterfall")
+    }
+
+    private func step(_ offset: Int, symbol: String, label: String) -> some View {
+        Button(action: { settings.layoutPreset = settings.layoutPreset.stepped(by: offset) }) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.joseonSecondary)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityValue(settings.layoutPreset.stepped(by: offset).title)
+    }
+}
+
+/// The ☰ menu of the full-screen header: the layouts, the headphone, the target curve, the session and the reset.
+struct FullScreenMenu: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var settings: AppSettings
+    @State private var showsSession = false
+
+    var body: some View {
+        Menu {
+            Section("Layout") {
+                ForEach(LayoutPreset.allCases) { preset in
+                    Button(action: { settings.layoutPreset = preset }) { checked(preset.title, settings.layoutPreset == preset) }
+                        .keyboardShortcut(KeyEquivalent(Character(preset.keyEquivalent)), modifiers: .command)
+                }
+            }
+            Section("Headphone") {
+                HeadphoneChoices(model: model, settings: settings)
+                Button("Import curve…") { model.runImportPanel() }
+                Button("Measure your headphone…") { model.openMeasure() }
+            }
+            Section("Target curve") { TargetChoices(model: model) }
+            Divider()
+            Button("Session…") { showsSession = true }
+            Button("Reset Measurement") { model.resetMeasurement() }
+        } label: {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.joseonSecondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Layout, headphone, target curve, session and reset")
+        .accessibilityLabel("Menu")
+        .accessibilityValue("Headphone: \(model.headphoneModelName ?? "None"). Target curve: \(model.currentTargetName ?? "None").")
+        .popover(isPresented: $showsSession, arrowEdge: .bottom) { SessionView(model: model) }
     }
 }
 

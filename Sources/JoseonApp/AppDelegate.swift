@@ -160,6 +160,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 self?.settings.showTimeline = true
             }))
         }
+        // JOSEON_SNAPSHOT_FULLSCREEN=1: the main window in full screen, with its own header. It takes over a display
+        // for a few seconds. The log lists the windows of the app: no toolbar window may sit over the header.
+        if ProcessInfo.processInfo.environment["JOSEON_SNAPSHOT_FULLSCREEN"] == "1" {
+            steps.append((wait, { [weak self] in
+                self?.settings.layoutPreset = .waterfall
+                self?.mainWindowController.window?.toggleFullScreen(nil)
+            }))
+            wait = 0.5
+            steps.append((2.5, { [weak self] in
+                DebugSnapshot.write(mainView(), name: "app-main-waterfall-fullscreen")
+                let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+                for info in windows where (info[kCGWindowOwnerPID as String] as? Int32) == getpid() {
+                    print("fullscreen window \(info[kCGWindowBounds as String] ?? "")".replacingOccurrences(of: "\n", with: " "))
+                }
+                self?.mainWindowController.window?.toggleFullScreen(nil)
+            }))
+            steps.append((2.5, {}))
+        }
         if !onlyMeasure {
             steps += splSnapshotSteps(firstDelay: wait, mainView: mainView)
             steps += ComparisonSnapshotPictures.steps(model: model)   // only with JOSEON_SNAPSHOT_COMPARE

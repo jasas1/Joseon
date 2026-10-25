@@ -28,6 +28,12 @@ enum LayoutPreset: String, CaseIterable, Identifiable {
         case .waterfall: return "6"
         }
     }
+    /// The ‹ › switcher of the full-screen header: the preset `offset` places on in the menu order, wrapping.
+    func stepped(by offset: Int) -> LayoutPreset {
+        let all = Self.allCases
+        let index = all.firstIndex(of: self) ?? 0
+        return all[((index + offset) % all.count + all.count) % all.count]
+    }
 }
 
 /// Loudness normalization targets the user can compare the integrated loudness with.
