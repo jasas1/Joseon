@@ -249,18 +249,24 @@ public enum AudioSystem {
 
     /// pid → app name. Helper processes (for example a browser's audio helper) have no
     /// NSRunningApplication, so walk the bundle id up to the owning app ("com.x.App.helper" → "com.x.App").
+    /// The walk starts at the full id: Roon plays from its RAATServer helper, which carries Roon's own id.
     static func displayName(pid: pid_t, bundleID: String) -> String {
         if let app = NSRunningApplication(processIdentifier: pid), let name = app.localizedName, !name.isEmpty {
             return name
         }
         var parts = bundleID.split(separator: ".").map(String.init)
-        while parts.count > 2 {
-            parts.removeLast()
+        while parts.count >= 2 {
             let candidate = parts.joined(separator: ".")
             if let app = NSRunningApplication.runningApplications(withBundleIdentifier: candidate).first,
                let name = app.localizedName, !name.isEmpty {
                 return name
             }
+            parts.removeLast()
+        }
+        // The owning app is not running (Roon Server alone, say): its name from the installed bundle.
+        if !bundleID.isEmpty, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
+           let name = Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleName") as? String, !name.isEmpty {
+            return name
         }
         return bundleID.isEmpty ? "pid \(pid)" : bundleID
     }
